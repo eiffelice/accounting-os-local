@@ -155,28 +155,18 @@ export async function calculateWht(input: {
   );
 
   const { rows } = await pool.query<{
-    contract_below_threshold: boolean;
-    contract_covers_payment: boolean;
+    contract_qualifies: boolean;
     tax_amount: string;
   }>(
-    `SELECT
-       ($2::numeric < $3::numeric) AS contract_below_threshold,
-       ($2::numeric >= $1::numeric) AS contract_covers_payment,
-       CASE
-         WHEN $2::numeric < $3::numeric THEN '0.00'::numeric
-         ELSE tax_percent_amount($1::numeric,$4)
-       END::text AS tax_amount`,
+    `SELECT contract_qualifies, tax_amount::text
+     FROM tax_wht_breakdown($1::numeric,$2::numeric,$3,$4::numeric)`,
     [
       input.withholdingBaseAmount,
       input.contractTotalAmount,
-      rule.threshold_amount,
       rule.rate_bps,
+      rule.threshold_amount,
     ]
   );
-
-  if (!rows[0].contract_covers_payment) {
-    throw new Error('contractTotalAmount must be greater than or equal to withholdingBaseAmount');
-  }
 
   const formCode =
     input.payeeType === 'INDIVIDUAL'
@@ -203,7 +193,7 @@ export async function calculateWht(input: {
     contractTotalAmount: input.contractTotalAmount,
     whtAmount: rows[0].tax_amount,
     formCode,
-    contractBelowThreshold: rows[0].contract_below_threshold,
+    contractQualifies: rows[0].contract_qualifies,
     currency: 'THB',
     deterministic: true,
     warning:
