@@ -24,7 +24,7 @@ export async function AppShell({
           <div className="logo">A</div>
           <div>
             <strong>Accounting OS</strong>
-            <small>LOCAL v0.2</small>
+            <small>LOCAL v0.3</small>
           </div>
         </div>
 
@@ -32,6 +32,7 @@ export async function AppShell({
           <Link className="nav" href={`/${q}`}>ภาพรวม</Link>
           <Link className="nav" href={`/companies${q}`}>บริษัท / บัญชี</Link>
           <Link className="nav" href={`/transactions${q}`}>รายรับ / รายจ่าย</Link>
+          <Link className="nav" href={`/tax${q}`}>ภาษี</Link>
           <Link className="nav" href={`/approvals${q}`}>อนุมัติ</Link>
           <Link className="nav" href={`/contacts${q}`}>ลูกค้า / คู่ค้า</Link>
           <Link className="nav" href={`/periods${q}`}>รอบบัญชี</Link>
