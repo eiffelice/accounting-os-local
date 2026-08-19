@@ -169,9 +169,10 @@ function buildServer() {
     'tax_calculate_wht',
     {
       description:
-        'Deterministically calculate a supported Thai WHT scenario from a versioned rule. Classification and exceptions must be verified before filing. Pure calculation only.',
+        'Deterministically calculate a supported Thai WHT scenario. Requires both the withholding base for this payment and the total contract amount because the THB 1,000 threshold is based on the contract. Pure calculation only; never files tax.',
       inputSchema: z.object({
-        amount: money,
+        withholdingBaseAmount: money,
+        contractTotalAmount: money,
         transactionType: z.enum(['SERVICE', 'RENT', 'ADVERTISING']),
         payeeType: z.enum(['INDIVIDUAL', 'LEGAL_ENTITY']),
         transactionDate: isoDate,
