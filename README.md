@@ -23,7 +23,7 @@ Local-first accounting system for **multiple companies and multiple financial ac
 - SHA-256 document evidence
 - Local backup + restore using container-side binary dump + catalog verification
 - MCP stays read + draft only
-- MCP stdio server uses the 2026-07-28 compatible `serveStdio(factory)` entry
+- MCP stdio server for local AI clients
 
 ## Local-only data path
 
@@ -61,7 +61,8 @@ Requirements:
 - PowerShell
 
 ```powershell
-cd accounting-os-local-v0.2
+git clone https://github.com/eiffelice/accounting-os-local.git
+cd accounting-os-local
 .\start-local.ps1
 ```
 
@@ -146,6 +147,17 @@ Not exposed:
 - `tax_submit`
 - `secret_read`
 - generic SQL/filesystem
+
+## Local secrets and data
+
+The repository intentionally excludes:
+- `.env`
+- `data/`
+- `backups/`
+- `node_modules/`
+- build output
+
+Only `.env.example` is committed.
 
 ## v0.3 target
 
