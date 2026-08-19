@@ -1,13 +1,17 @@
 -- Accounting OS Local v0.3 — Thai Tax Core QA / Golden Regression
--- Run after migrations 002_5, 003, 004.
+-- Run after migrations through 006_v0_3_wht_engine.sql.
 -- Fails fast with RAISE EXCEPTION when a core invariant regresses.
 
 DO $$
 DECLARE
   v_rate integer;
+  v_version integer;
+  v_threshold numeric(18,2);
   v_base numeric(18,2);
   v_tax numeric(18,2);
   v_gross numeric(18,2);
+  v_wht_tax numeric(18,2);
+  v_qualifies boolean;
   v_overlap_count integer;
 BEGIN
   -- VAT rule on 2026-08-20 must resolve to 7%.
@@ -40,6 +44,28 @@ BEGIN
     RAISE EXCEPTION 'GOLDEN_FAIL: VAT inclusive got base %, tax %, gross %', v_base, v_tax, v_gross;
   END IF;
 
+  -- Current WHT rules must be corrected v2 rules with THB 1,000 contract threshold.
+  SELECT version, threshold_amount
+  INTO v_version, v_threshold
+  FROM tax_rule_resolve('WHT','WHT_SERVICE','2026-08-20'::date);
+  IF v_version IS DISTINCT FROM 2 OR v_threshold <> 1000.00 THEN
+    RAISE EXCEPTION 'GOLDEN_FAIL: service WHT expected v2 / threshold 1000, got v% / %', v_version, v_threshold;
+  END IF;
+
+  SELECT version, threshold_amount
+  INTO v_version, v_threshold
+  FROM tax_rule_resolve('WHT','WHT_RENT','2026-08-20'::date);
+  IF v_version IS DISTINCT FROM 2 OR v_threshold <> 1000.00 THEN
+    RAISE EXCEPTION 'GOLDEN_FAIL: rent WHT expected v2 / threshold 1000, got v% / %', v_version, v_threshold;
+  END IF;
+
+  SELECT version, threshold_amount
+  INTO v_version, v_threshold
+  FROM tax_rule_resolve('WHT','WHT_ADVERTISING','2026-08-20'::date);
+  IF v_version IS DISTINCT FROM 2 OR v_threshold <> 1000.00 THEN
+    RAISE EXCEPTION 'GOLDEN_FAIL: advertising WHT expected v2 / threshold 1000, got v% / %', v_version, v_threshold;
+  END IF;
+
   -- WHT common-rate golden cases.
   IF tax_percent_amount(1000.00,300) <> 30.00 THEN
     RAISE EXCEPTION 'GOLDEN_FAIL: service WHT 3%%';
@@ -51,7 +77,34 @@ BEGIN
     RAISE EXCEPTION 'GOLDEN_FAIL: advertising WHT 2%%';
   END IF;
 
-  -- Verified rules must keep official-source provenance.
+  -- Split payment: current payment 500, contract total 1,500 => contract qualifies; 3% of 500 = 15.
+  SELECT contract_qualifies, tax_amount
+  INTO v_qualifies, v_wht_tax
+  FROM tax_wht_breakdown(500.00,1500.00,300,1000.00);
+  IF v_qualifies IS DISTINCT FROM true OR v_wht_tax <> 15.00 THEN
+    RAISE EXCEPTION 'GOLDEN_FAIL: split-payment WHT expected qualifies=true/tax=15, got %/%', v_qualifies, v_wht_tax;
+  END IF;
+
+  -- Contract below threshold: payment 500, contract total 900 => no withholding in this supported rule path.
+  SELECT contract_qualifies, tax_amount
+  INTO v_qualifies, v_wht_tax
+  FROM tax_wht_breakdown(500.00,900.00,300,1000.00);
+  IF v_qualifies IS DISTINCT FROM false OR v_wht_tax <> 0.00 THEN
+    RAISE EXCEPTION 'GOLDEN_FAIL: below-threshold WHT expected qualifies=false/tax=0, got %/%', v_qualifies, v_wht_tax;
+  END IF;
+
+  -- Superseded v1 WHT seed must never be selected as VERIFIED.
+  IF EXISTS (
+    SELECT 1 FROM tax_rule_versions
+    WHERE tax_type='WHT'
+      AND rule_code IN ('WHT_SERVICE','WHT_RENT','WHT_ADVERTISING')
+      AND version=1
+      AND verification_status='VERIFIED'
+  ) THEN
+    RAISE EXCEPTION 'INVARIANT_FAIL: superseded WHT v1 still VERIFIED';
+  END IF;
+
+  -- Verified rules must keep official Revenue Department provenance.
   IF EXISTS (
     SELECT 1
     FROM tax_rule_versions
