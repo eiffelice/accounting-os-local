@@ -1,8 +1,28 @@
-# Accounting OS Local v0.2
+# Accounting OS Local v0.3
 
-Local-first accounting system for **multiple companies and multiple financial accounts** with a human approval workflow and local MCP integration.
+Local-first accounting system for **multiple companies and multiple financial accounts** with a human approval workflow, deterministic Thai tax core, and local MCP integration.
 
-## New in v0.2
+## New in v0.3 — Thai Tax Core
+
+- Versioned Tax Rule Registry with effective dates
+- Immutable tax-rule history: corrections create a new rule version
+- Official Revenue Department provenance stored with verified rules
+- Deterministic VAT calculation using PostgreSQL `NUMERIC`
+- VAT exclusive / inclusive breakdown
+- Current VAT rule versioning across effective periods
+- WHT rules currently supported for service, rent, and advertising
+- WHT contract-threshold logic based on **contract total**, not only the current installment
+- Deterministic split-payment WHT through PostgreSQL `tax_wht_breakdown()`
+- Company tax profiles
+- Tax control accounts: input VAT, output VAT, WHT receivable, WHT payable
+- Base tax calendar for PND3 / PND53 / PP30 with explicit official-calendar verification warning
+- Tax calculation record table with immutable `FINAL` records
+- Tax dashboard in the Web UI
+- Golden SQL regression tests for VAT/WHT invariants
+- MCP tax tools are **read / calculate only**
+- AI tax filing remains disabled
+
+## v0.2 foundation retained
 
 - Local login/session (HTTP-only cookie)
 - Password change flow that revokes existing sessions
@@ -22,20 +42,21 @@ Local-first accounting system for **multiple companies and multiple financial ac
 - Local document upload (PDF/JPG/PNG, max 10 MB)
 - SHA-256 document evidence
 - Local backup + restore using container-side binary dump + catalog verification
-- MCP stays read + draft only
-- MCP stdio server for local AI clients
 
-## Local-only data path
+## Single Source of Truth
 
 ```text
-Browser
-  ↓
-Next.js localhost
-  ↓
-Accounting Core
-  ↓
+Browser / AI host
+      ↓
+Web / MCP
+      ↓
+Accounting + Tax Core
+      ↓
 PostgreSQL 127.0.0.1
-  ├── Ledger
+  ├── Canonical Ledger
+  ├── Tax Rule Registry
+  ├── Tax Calculation Engine
+  ├── Tax Evidence / Provenance
   ├── Contacts
   ├── Permissions
   ├── Approval
@@ -43,15 +64,9 @@ PostgreSQL 127.0.0.1
 
 Local documents → ./data/documents
 Local backups   → ./backups
-
-AI host
-  ↓
-MCP stdio
-  ↓
-Permission check
-  ↓
-Read / create Draft only
 ```
+
+AI is never the accounting or tax calculation source of truth. The Web UI and MCP clients call the same deterministic database functions.
 
 ## Start on Windows
 
@@ -81,31 +96,61 @@ change-me-now
 
 **Change the demo password before putting real accounting data into the system.**
 
-## Existing v0.1 database
-
-`start-local.ps1` applies the idempotent v0.2 migration automatically.
-
-You can also run:
+## Upgrade an existing local database
 
 ```powershell
+git pull
 .\migrate-local.ps1
 ```
 
-## Backup
+The v0.3 migration chain applies:
 
-```powershell
-.\backup-local.ps1
+```text
+002_v0_2.sql
+002_5_v0_3_pre.sql
+003_v0_3_tax.sql
+004_v0_3_tax_patch.sql
+005_v0_3_wht_contract_threshold.sql
+006_v0_3_wht_engine.sql
+        ↓
+qa_v0_3_tax.sql
 ```
 
-The script creates a local PostgreSQL custom-format dump and verifies the backup catalog.
+`qa_v0_3_tax.sql` fails fast if a golden accounting/tax invariant regresses.
 
-## Restore
+## Thai tax rules currently implemented
 
-```powershell
-.\restore-local.ps1 -BackupFile ".\backups\accounting-os-YYYYMMDD-HHMMSS.dump"
-```
+### VAT
 
-Restore is destructive and requires typing `RESTORE`.
+The engine resolves VAT by transaction date from `tax_rule_versions` rather than hardcoding one global constant.
+
+Supported calculation modes:
+- `EXCLUSIVE`
+- `INCLUSIVE`
+
+Examples at a 7% resolved rule:
+- 1,000 exclusive → base 1,000 / VAT 70 / gross 1,070
+- 1,070 inclusive → base 1,000 / VAT 70 / gross 1,070
+
+### WHT
+
+Currently supported transaction classes:
+- service — 3%
+- rent — 5%
+- advertising — 2%
+
+The supported WHT path evaluates the **total contract amount** against the THB 1,000 contract threshold. Example: a THB 500 installment under a THB 1,500 contract still qualifies for withholding; the withholding amount is calculated on the relevant payment/base amount.
+
+WHT classification, payer/payee status, exceptions, and the real transaction documents must still be verified before filing.
+
+## Tax calendar
+
+The engine stores a **base schedule** for:
+- PND3
+- PND53
+- PP30
+
+Actual legal filing dates may move because of holidays or Revenue Department extension announcements. The system intentionally labels generated dates as requiring official-calendar verification before filing.
 
 ## Human accounting flow
 
@@ -134,17 +179,24 @@ Append-only Audit
 
 ## MCP tools
 
-Exposed:
+Accounting:
 - `company_list`
 - `financial_account_list`
 - `report_trial_balance`
 - `journal_recent`
 - `expense_create_draft`
 
+Thai Tax Core:
+- `tax_rule_list`
+- `tax_calculate_vat`
+- `tax_calculate_wht`
+- `tax_calendar_month`
+
 Not exposed:
 - `journal_post`
 - `payment_execute`
 - `tax_submit`
+- tax return filing
 - `secret_read`
 - generic SQL/filesystem
 
@@ -159,12 +211,26 @@ The repository intentionally excludes:
 
 Only `.env.example` is committed.
 
-## v0.3 target
+## Before real accounting/tax use
 
-Thai tax core:
-- Tax Rule Registry
-- VAT input/output
-- WHT
-- tax evidence/provenance
-- tax calendar
-- golden regression tests
+Run locally:
+
+```powershell
+.\migrate-local.ps1
+npm run typecheck
+npm run build
+.\start-local.ps1
+```
+
+The repository contains code-level safeguards and SQL golden tests, but a clean runtime migration/build test on the target Windows machine is still required before treating the release as production-verified.
+
+## Next target — v0.3.1 / v0.4
+
+- Wire VAT/WHT calculations directly into accounting transaction drafts
+- Input/output VAT subledgers and PP30 working report
+- WHT certificate / PND working datasets
+- Tax evidence attachment links and calculation hashes
+- Tax profile editor and VAT registration settings
+- Tax-period close / correction workflow
+- Accountant acceptance test pack
+- Expanded Thai tax-rule coverage with official-source review
