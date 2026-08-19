@@ -66,8 +66,12 @@ export async function createCompany(
       ['1000','เงินสด','ASSET','CASH'],
       ['1100','เงินฝากธนาคาร/อีวอลเล็ต','ASSET','BANK'],
       ['1200','ลูกหนี้การค้า','ASSET','AR'],
+      ['1300','ภาษีซื้อ','ASSET','VAT_INPUT'],
+      ['1310','ภาษีหัก ณ ที่จ่ายถูกหัก','ASSET','WHT_RECEIVABLE'],
       ['2000','เจ้าหนี้การค้า','LIABILITY','AP'],
       ['2100','เจ้าหนี้บัตรเครดิต','LIABILITY','CREDIT_CARD_PAYABLE'],
+      ['2200','ภาษีขายค้างจ่าย','LIABILITY','VAT_OUTPUT'],
+      ['2210','ภาษีหัก ณ ที่จ่ายค้างจ่าย','LIABILITY','WHT_PAYABLE'],
       ['3000','ทุน','EQUITY','EQUITY'],
       ['4000','รายได้จากการขาย/บริการ','REVENUE','REVENUE_MAIN'],
       ['5000','ค่าใช้จ่ายทั่วไป','EXPENSE','EXPENSE_GENERAL'],
@@ -82,6 +86,13 @@ export async function createCompany(
         [companyId, codeValue, name, type, key]
       );
     }
+
+    await client.query(
+      `INSERT INTO company_tax_profiles(company_id)
+       VALUES($1)
+       ON CONFLICT (company_id) DO NOTHING`,
+      [companyId]
+    );
 
     const year = new Date().getFullYear();
     await client.query(
