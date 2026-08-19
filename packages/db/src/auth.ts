@@ -1,0 +1,108 @@
+import { createHash, randomBytes, timingSafeEqual, pbkdf2Sync } from 'node:crypto';
+import { pool, type LocalUser } from './base.js';
+
+export function hashSessionToken(token: string) {
+  return createHash('sha256').update(token).digest('hex');
+}
+
+export function verifyPassword(password: string, encoded: string | null) {
+  if (!encoded) return false;
+  const [algo, iterationsText, saltB64, hashB64] = encoded.split('$');
+  if (algo !== 'pbkdf2_sha256') return false;
+  const iterations = Number(iterationsText);
+  if (!Number.isSafeInteger(iterations) || iterations < 100000) return false;
+  const salt = Buffer.from(saltB64, 'base64');
+  const expected = Buffer.from(hashB64, 'base64');
+  const actual = pbkdf2Sync(password, salt, iterations, expected.length, 'sha256');
+  return expected.length === actual.length && timingSafeEqual(expected, actual);
+}
+
+export function makePasswordHash(password: string) {
+  if (password.length < 12) throw new Error('password must be at least 12 characters');
+  const iterations = 310000;
+  const salt = randomBytes(16);
+  const digest = pbkdf2Sync(password, salt, iterations, 32, 'sha256');
+  return `pbkdf2_sha256$${iterations}$${salt.toString('base64')}$${digest.toString('base64')}`;
+}
+
+export async function changePassword(userId: string, currentPassword: string, newPassword: string) {
+  const { rows } = await pool.query(
+    `SELECT password_hash FROM app_users WHERE id=$1 AND is_active=true`,
+    [userId]
+  );
+  if (!rows[0] || !verifyPassword(currentPassword, rows[0].password_hash)) {
+    throw new Error('current password is incorrect');
+  }
+  const newHash = makePasswordHash(newPassword);
+  await pool.query(
+    `UPDATE app_users SET password_hash=$2, must_change_password=false WHERE id=$1`,
+    [userId, newHash]
+  );
+  await pool.query(`UPDATE user_sessions SET revoked_at=now() WHERE user_id=$1 AND revoked_at IS NULL`, [userId]);
+  await pool.query(
+    `INSERT INTO audit_events(actor_user_id, event_type, resource_type, resource_id, payload)
+     VALUES($1,'PASSWORD_CHANGED','app_user',$1,'{}'::jsonb)`,
+    [userId]
+  );
+}
+
+export async function getActorByEmail(email: string) {
+  const { rows } = await pool.query<LocalUser>(
+    `SELECT id, email, display_name, is_active
+     FROM app_users
+     WHERE email = $1 AND is_active = true`,
+    [email]
+  );
+  return rows[0] ?? null;
+}
+
+export async function getUserForLogin(email: string) {
+  const { rows } = await pool.query(
+    `SELECT id, email, display_name, is_active, password_hash, must_change_password
+     FROM app_users WHERE lower(email)=lower($1) AND is_active=true`,
+    [email]
+  );
+  return rows[0] ?? null;
+}
+
+export async function createSession(userId: string, ttlHours = 12) {
+  const token = randomBytes(32).toString('base64url');
+  const tokenHash = hashSessionToken(token);
+  const { rows } = await pool.query(
+    `INSERT INTO user_sessions(user_id, token_hash, expires_at)
+     VALUES ($1,$2,now() + ($3::text || ' hours')::interval)
+     RETURNING expires_at`,
+    [userId, tokenHash, ttlHours]
+  );
+  return { token, expiresAt: rows[0].expires_at as Date };
+}
+
+export async function getSessionUser(token: string | undefined) {
+  if (!token) return null;
+  const { rows } = await pool.query<LocalUser>(
+    `SELECT u.id, u.email, u.display_name, u.is_active
+     FROM user_sessions s
+     JOIN app_users u ON u.id=s.user_id
+     WHERE s.token_hash=$1
+       AND s.revoked_at IS NULL
+       AND s.expires_at > now()
+       AND u.is_active=true`,
+    [hashSessionToken(token)]
+  );
+  if (rows[0]) {
+    await pool.query(
+      `UPDATE user_sessions SET last_seen_at=now()
+       WHERE token_hash=$1`,
+      [hashSessionToken(token)]
+    );
+  }
+  return rows[0] ?? null;
+}
+
+export async function revokeSession(token: string) {
+  await pool.query(
+    `UPDATE user_sessions SET revoked_at=now()
+     WHERE token_hash=$1 AND revoked_at IS NULL`,
+    [hashSessionToken(token)]
+  );
+}
