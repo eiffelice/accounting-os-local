@@ -6,7 +6,8 @@ $migrations = @(
   ".\db\migrations\002_5_v0_3_pre.sql",
   ".\db\migrations\003_v0_3_tax.sql",
   ".\db\migrations\004_v0_3_tax_patch.sql",
-  ".\db\migrations\005_v0_3_wht_contract_threshold.sql"
+  ".\db\migrations\005_v0_3_wht_contract_threshold.sql",
+  ".\db\migrations\006_v0_3_wht_engine.sql"
 )
 
 foreach ($migration in $migrations) {
