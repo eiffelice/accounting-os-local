@@ -1,0 +1,18 @@
+{
+  "name": "accounting-os-local",
+  "version": "0.2.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:web": "npm --workspace apps/web run dev",
+    "dev:mcp": "npm --workspace apps/mcp run dev",
+    "build": "npm --workspace apps/web run build && npm --workspace apps/mcp run build",
+    "typecheck": "npm --workspace packages/db run typecheck && npm --workspace apps/mcp run typecheck && npm --workspace apps/web run typecheck"
+  },
+  "engines": {
+    "node": ">=20.9"
+  }
+}

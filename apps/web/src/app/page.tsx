@@ -1,0 +1,123 @@
+import {
+  dashboardSummary,
+  listCompaniesForUser,
+  listFinancialAccounts,
+  recentJournals,
+} from '@accounting-os/db';
+import { requireUser } from '@/lib/auth';
+import { AppShell } from '@/components/shell';
+
+export const dynamic = 'force-dynamic';
+
+const money = (v: string | number) =>
+  new Intl.NumberFormat('th-TH', {
+    style: 'currency',
+    currency: 'THB',
+    maximumFractionDigits: 2,
+  }).format(Number(v));
+
+export default async function Home({
+  searchParams,
+}: {
+  searchParams: Promise<{ company?: string }>;
+}) {
+  const user = await requireUser();
+  const params = await searchParams;
+  const companies = await listCompaniesForUser(user.id);
+  const selected = companies.find((c) => c.id === params.company) ?? companies[0];
+
+  if (!selected) {
+    return <AppShell user={user}><div className="panel">ยังไม่มีบริษัทที่คุณเข้าถึงได้</div></AppShell>;
+  }
+
+  const [summary, accounts, journals] = await Promise.all([
+    dashboardSummary(selected.id),
+    listFinancialAccounts(selected.id),
+    recentJournals(selected.id, 8),
+  ]);
+
+  return (
+    <AppShell user={user} selectedCompanyId={selected.id}>
+      <header className="topbar">
+        <div>
+          <p className="eyebrow">บริษัทที่กำลังดู</p>
+          <h1>{selected.display_name}</h1>
+        </div>
+        <div className="companySwitch">
+          {companies.map((c) => (
+            <a key={c.id}
+              className={c.id === selected.id ? 'company activeCompany' : 'company'}
+              href={`/?company=${c.id}`}>
+              {c.code}
+            </a>
+          ))}
+        </div>
+      </header>
+
+      <section className="hero">
+        <div>
+          <span className="pill">Canonical Ledger • Local Only</span>
+          <h2>Accounting OS v0.2</h2>
+          <p>หลายบริษัท • หลายบัญชี • Human Approval • Local Documents • MCP Draft-only</p>
+        </div>
+        <div className="health">
+          <span>Ledger Integrity</span><b>ENFORCED</b>
+          <span>Human Workflow</span><b>ENABLED</b>
+          <span>Cloud DB</span><b>DISABLED</b>
+        </div>
+      </section>
+
+      <section className="kpis">
+        <article className="card"><span>รายรับสะสม</span><strong>{money(summary.revenue)}</strong><small>Posted Ledger</small></article>
+        <article className="card"><span>รายจ่ายสะสม</span><strong>{money(summary.expense)}</strong><small>Posted Ledger</small></article>
+        <article className="card"><span>กำไรเบื้องต้น</span><strong>{money(summary.profit)}</strong><small>Revenue - Expense</small></article>
+        <article className="card"><span>เงินสด / ธนาคาร</span><strong>{money(summary.cash_balance)}</strong><small>{accounts.length} บัญชี</small></article>
+      </section>
+
+      <section className="grid">
+        <article className="panel">
+          <div className="panelHead"><div><p className="eyebrow">FINANCIAL ACCOUNTS</p><h3>หลายบัญชีในบริษัทเดียว</h3></div><span className="count">{accounts.length}</span></div>
+          <div className="accountList">
+            {accounts.map((a: any) => (
+              <div className="accountRow" key={a.id}>
+                <div className="accountIcon">{a.kind === 'CASH' ? '฿' : '🏦'}</div>
+                <div className="grow"><b>{a.name}</b><span>{a.institution ?? 'เงินสด'} · {a.masked_number ?? 'Local cash'}</span></div>
+                <div className="right"><b>{a.currency}</b><span>GL {a.gl_code}</span></div>
+              </div>
+            ))}
+          </div>
+        </article>
+
+        <article className="panel" id="mcp">
+          <div className="panelHead"><div><p className="eyebrow">MCP CONTROL</p><h3>AI ยังเป็น Draft-only</h3></div><span className="statusGood">LOCAL STDIO</span></div>
+          {[
+            ['company_list','READ'],
+            ['financial_account_list','READ'],
+            ['report_trial_balance','READ'],
+            ['journal_recent','READ'],
+            ['expense_create_draft','DRAFT'],
+          ].map(([tool, level]) => (
+            <div className="tool" key={tool}><code>{tool}</code><span className={level === 'DRAFT' ? 'draft' : 'allow'}>{level}</span></div>
+          ))}
+          <div className="tool denied"><code>journal_post</code><span>HUMAN UI ONLY</span></div>
+          <div className="tool denied"><code>payment_execute</code><span>NOT EXPOSED</span></div>
+        </article>
+      </section>
+
+      <section className="panel recent">
+        <div className="panelHead"><div><p className="eyebrow">CANONICAL LEDGER</p><h3>รายการล่าสุด</h3></div></div>
+        <div className="table">
+          <div className="tr th"><span>วันที่</span><span>เลขที่</span><span>รายละเอียด</span><span>สถานะ</span></div>
+          {journals.map((j: any) => (
+            <div className="tr" key={j.id}>
+              <span>{new Date(j.txn_date).toLocaleDateString('th-TH')}</span>
+              <span>{j.entry_no ?? 'DRAFT'}</span>
+              <span>{j.memo}</span>
+              <span><b className={j.status === 'POSTED' ? 'posted' : 'draftText'}>{j.status}</b></span>
+            </div>
+          ))}
+        </div>
+      </section>
+    </AppShell>
+  );
+}

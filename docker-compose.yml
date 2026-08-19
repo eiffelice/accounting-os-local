@@ -1,0 +1,22 @@
+services:
+  db:
+    image: postgres:18-alpine
+    container_name: accounting-os-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: accounting_os
+      POSTGRES_USER: accounting
+      POSTGRES_PASSWORD: accounting_local_only
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - accounting_os_pgdata:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U accounting -d accounting_os"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  accounting_os_pgdata:
