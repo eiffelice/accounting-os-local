@@ -56,14 +56,14 @@ export default async function Home({
 
       <section className="hero">
         <div>
-          <span className="pill">Canonical Ledger • Local Only</span>
-          <h2>Accounting OS v0.2</h2>
-          <p>หลายบริษัท • หลายบัญชี • Human Approval • Local Documents • MCP Draft-only</p>
+          <span className="pill">Canonical Ledger • Thai Tax Core • Local Only</span>
+          <h2>Accounting OS v0.3</h2>
+          <p>หลายบริษัท • หลายบัญชี • Human Approval • VAT/WHT Deterministic • MCP Safe Tools</p>
         </div>
         <div className="health">
           <span>Ledger Integrity</span><b>ENFORCED</b>
-          <span>Human Workflow</span><b>ENABLED</b>
-          <span>Cloud DB</span><b>DISABLED</b>
+          <span>Tax Rule Versioning</span><b>ENABLED</b>
+          <span>AI Tax Filing</span><b>DISABLED</b>
         </div>
       </section>
 
@@ -89,17 +89,22 @@ export default async function Home({
         </article>
 
         <article className="panel" id="mcp">
-          <div className="panelHead"><div><p className="eyebrow">MCP CONTROL</p><h3>AI ยังเป็น Draft-only</h3></div><span className="statusGood">LOCAL STDIO</span></div>
+          <div className="panelHead"><div><p className="eyebrow">MCP CONTROL</p><h3>AI = Read / Calculate / Draft</h3></div><span className="statusGood">LOCAL STDIO</span></div>
           {[
             ['company_list','READ'],
             ['financial_account_list','READ'],
             ['report_trial_balance','READ'],
             ['journal_recent','READ'],
             ['expense_create_draft','DRAFT'],
+            ['tax_rule_list','READ'],
+            ['tax_calculate_vat','CALC'],
+            ['tax_calculate_wht','CALC'],
+            ['tax_calendar_month','READ'],
           ].map(([tool, level]) => (
             <div className="tool" key={tool}><code>{tool}</code><span className={level === 'DRAFT' ? 'draft' : 'allow'}>{level}</span></div>
           ))}
           <div className="tool denied"><code>journal_post</code><span>HUMAN UI ONLY</span></div>
+          <div className="tool denied"><code>tax_submit</code><span>NOT EXPOSED</span></div>
           <div className="tool denied"><code>payment_execute</code><span>NOT EXPOSED</span></div>
         </article>
       </section>
