@@ -4,11 +4,15 @@ import * as z from 'zod/v4';
 
 import {
   assertCompanyAccess,
+  calculateVat,
+  calculateWht,
   createExpenseDraft,
   getActorByEmail,
   listCompanies,
   listFinancialAccounts,
+  listTaxRules,
   recentJournals,
+  taxCalendarForPeriod,
   trialBalance,
 } from '@accounting-os/db';
 
@@ -27,10 +31,14 @@ function asText(data: unknown) {
   };
 }
 
+const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+const period = z.string().regex(/^\d{4}-\d{2}$/);
+const money = z.string().regex(/^\d{1,15}(?:\.\d{1,2})?$/);
+
 function buildServer() {
   const server = new McpServer({
     name: 'accounting-os-local',
-    version: '0.2.0',
+    version: '0.3.0',
   });
 
   server.registerTool(
@@ -108,7 +116,7 @@ function buildServer() {
         financialAccountId: z.string().uuid(),
         expenseAccountCode: z.string().min(1).max(30),
         amount: z.number().positive().max(1000000000),
-        txnDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        txnDate: isoDate,
         description: z.string().min(1).max(500),
         idempotencyKey: z.string().min(8).max(200),
       }),
@@ -129,8 +137,62 @@ function buildServer() {
     }
   );
 
+  server.registerTool(
+    'tax_rule_list',
+    {
+      description:
+        'Read verified Thai tax rule versions with effective dates and official-source provenance. Read-only; never files tax.',
+      inputSchema: z.object({
+        taxType: z.enum(['VAT', 'WHT']).optional(),
+        asOf: isoDate.optional(),
+      }),
+    },
+    async ({ taxType, asOf }) =>
+      asText(await listTaxRules({ taxType, asOf }))
+  );
+
+  server.registerTool(
+    'tax_calculate_vat',
+    {
+      description:
+        'Deterministically calculate Thai VAT from a versioned tax rule using PostgreSQL NUMERIC. Pure calculation only; no posting or filing.',
+      inputSchema: z.object({
+        amount: money,
+        mode: z.enum(['EXCLUSIVE', 'INCLUSIVE']),
+        transactionDate: isoDate,
+      }),
+    },
+    async (input) => asText(await calculateVat(input))
+  );
+
+  server.registerTool(
+    'tax_calculate_wht',
+    {
+      description:
+        'Deterministically calculate a supported Thai WHT scenario from a versioned rule. Classification and exceptions must be verified before filing. Pure calculation only.',
+      inputSchema: z.object({
+        amount: money,
+        transactionType: z.enum(['SERVICE', 'RENT', 'ADVERTISING']),
+        payeeType: z.enum(['INDIVIDUAL', 'LEGAL_ENTITY']),
+        transactionDate: isoDate,
+      }),
+    },
+    async (input) => asText(await calculateWht(input))
+  );
+
+  server.registerTool(
+    'tax_calendar_month',
+    {
+      description:
+        'Return the base Thai tax filing schedule for a YYYY-MM tax period. Read-only. Returned dates must be checked against the Revenue Department calendar for holidays or special extensions.',
+      inputSchema: z.object({ period }),
+    },
+    async ({ period: taxPeriod }) =>
+      asText(await taxCalendarForPeriod(taxPeriod))
+  );
+
   return server;
 }
 
 void serveStdio(buildServer);
-console.error('Accounting OS Local v0.2 MCP running over stdio');
+console.error('Accounting OS Local v0.3 MCP running over stdio');
