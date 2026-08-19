@@ -138,12 +138,14 @@ const WHT_RULE_BY_TRANSACTION: Record<WhtTransactionType, string> = {
 };
 
 export async function calculateWht(input: {
-  amount: string;
+  withholdingBaseAmount: string;
+  contractTotalAmount: string;
   transactionType: WhtTransactionType;
   payeeType: PayeeType;
   transactionDate: string;
 }) {
-  assertMoneyString(input.amount);
+  assertMoneyString(input.withholdingBaseAmount);
+  assertMoneyString(input.contractTotalAmount);
   assertIsoDate(input.transactionDate);
 
   const rule = await resolveTaxRule(
@@ -152,15 +154,29 @@ export async function calculateWht(input: {
     input.transactionDate
   );
 
-  const { rows } = await pool.query<{ below_threshold: boolean; tax_amount: string }>(
+  const { rows } = await pool.query<{
+    contract_below_threshold: boolean;
+    contract_covers_payment: boolean;
+    tax_amount: string;
+  }>(
     `SELECT
-       ($1::numeric < $2::numeric) AS below_threshold,
+       ($2::numeric < $3::numeric) AS contract_below_threshold,
+       ($2::numeric >= $1::numeric) AS contract_covers_payment,
        CASE
-         WHEN $1::numeric < $2::numeric THEN '0.00'::numeric
-         ELSE tax_percent_amount($1::numeric,$3)
+         WHEN $2::numeric < $3::numeric THEN '0.00'::numeric
+         ELSE tax_percent_amount($1::numeric,$4)
        END::text AS tax_amount`,
-    [input.amount, rule.threshold_amount, rule.rate_bps]
+    [
+      input.withholdingBaseAmount,
+      input.contractTotalAmount,
+      rule.threshold_amount,
+      rule.rate_bps,
+    ]
   );
+
+  if (!rows[0].contract_covers_payment) {
+    throw new Error('contractTotalAmount must be greater than or equal to withholdingBaseAmount');
+  }
 
   const formCode =
     input.payeeType === 'INDIVIDUAL'
@@ -174,21 +190,24 @@ export async function calculateWht(input: {
       code: rule.rule_code,
       version: rule.version,
       rateBps: rule.rate_bps,
-      thresholdAmount: rule.threshold_amount,
+      contractThresholdAmount: rule.threshold_amount,
       legalReference: rule.legal_reference,
       sourceUrl: rule.source_url,
+      effectiveFrom: rule.effective_from,
+      effectiveTo: rule.effective_to,
     },
     transactionDate: input.transactionDate,
     transactionType: input.transactionType,
     payeeType: input.payeeType,
-    baseAmount: input.amount,
+    withholdingBaseAmount: input.withholdingBaseAmount,
+    contractTotalAmount: input.contractTotalAmount,
     whtAmount: rows[0].tax_amount,
     formCode,
-    belowThreshold: rows[0].below_threshold,
+    contractBelowThreshold: rows[0].contract_below_threshold,
     currency: 'THB',
     deterministic: true,
     warning:
-      'WHT depends on transaction classification, payer/payee status and exceptions. The resolved rule must match the real transaction before filing.',
+      'WHT depends on transaction classification, payer/payee status, contract total and exceptions. Verify the real transaction before filing.',
   };
 }
 
