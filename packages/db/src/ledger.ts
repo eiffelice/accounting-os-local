@@ -70,7 +70,7 @@ async function createDraft(
     kind: 'EXPENSE' | 'INCOME';
   }
 ) {
-  if (!/^\d{1,15}(?:\.\d{1,2})?$/.test(input.amount) || Number(input.amount) <= 0) {
+  if (!/^\d{1,15}(?:\.\d{1,2})?$/.test(input.amount) || /^0+(?:\.0{1,2})?$/.test(input.amount)) {
     throw new Error('amount must be a positive decimal string with max 2 decimals');
   }
   await assertCompanyAccess(input.actorId, input.companyId, 'create_draft');

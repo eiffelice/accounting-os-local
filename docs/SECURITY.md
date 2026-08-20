@@ -1,4 +1,4 @@
-# Security Notes v0.1
+# Security Notes v0.3.1
 
 ## Local-only defaults
 
@@ -14,7 +14,10 @@ MCP uses stdio, so it is not listening on a network port.
 
 ## Secret handling
 
-The demo password in `.env.example` is only for a local development database. v0.2 must move provider/API secrets to a local encrypted vault (Windows DPAPI / Credential Manager or dedicated vault).
+Startup creates a random database password and a one-time admin password. Accounts
+that still use the legacy public demo hash are disabled by migration. MCP credentials
+are random, hashed at rest, and remain unusable until the linked user changes the
+temporary password.
 
 Never expose:
 - database passwords,
@@ -34,12 +37,9 @@ An AI client must never become an administrator simply because it connected succ
 
 ## Production gates not completed yet
 
-- Real login/session management
 - Central ABAC/PDP
 - field-level masking policy
 - encrypted local document store
 - local DLP
 - step-up authentication
-- approval workflow
-- backup restore verification
 - adversarial MCP/prompt-injection suite

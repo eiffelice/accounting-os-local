@@ -33,12 +33,12 @@ export async function POST(request: Request) {
     const bytes = Buffer.from(await file.arrayBuffer());
     const sha256 = createHash('sha256').update(bytes).digest('hex');
     const storedName = `${randomUUID()}${ALLOWED.get(file.type)}`;
-    const base = path.resolve(process.env.LOCAL_DOCUMENTS_DIR ?? './data/documents');
+    const base = path.resolve(/*turbopackIgnore: true*/ process.env.LOCAL_DOCUMENTS_DIR ?? './data/documents');
     const companyDir = path.resolve(base, companyId);
     if (!companyDir.startsWith(base + path.sep)) throw new Error('invalid document path');
 
     await mkdir(companyDir, { recursive: true });
-    target = path.join(companyDir, storedName);
+    target = path.join(/*turbopackIgnore: true*/ companyDir, storedName);
     await writeFile(target, bytes, { flag: 'wx' });
 
     await insertLocalDocument(user.id, companyId, {

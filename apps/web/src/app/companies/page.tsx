@@ -4,9 +4,7 @@ import {
   financialAccountBalances,
   listCompaniesForUser,
 } from '@accounting-os/db';
-
-const money = (v: string | number) =>
-  new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB' }).format(Number(v));
+import { formatThb } from '@/lib/format';
 
 export default async function CompaniesPage({
   searchParams,
@@ -86,7 +84,7 @@ export default async function CompaniesPage({
                 <div className="accountRow" key={a.id}>
                   <div className="accountIcon">{a.kind === 'CASH' ? '฿' : '🏦'}</div>
                   <div className="grow"><b>{a.name}</b><span>{a.institution ?? a.kind} · {a.masked_number ?? '-'}</span></div>
-                  <div className="right"><b>{money(a.balance)}</b><span>{a.currency}</span></div>
+                  <div className="right"><b>{formatThb(a.balance)}</b><span>{a.currency}</span></div>
                 </div>
               ))}
               {balances.length === 0 ? <div className="emptyState">ยังไม่มีบัญชี</div> : null}

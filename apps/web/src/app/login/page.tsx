@@ -6,7 +6,9 @@ export default async function LoginPage({
 }: {
   searchParams: Promise<{ error?: string }>;
 }) {
-  if (await currentUser()) redirect('/');
+  const user = await currentUser({ allowMustChangePassword: true });
+  if (user?.must_change_password) redirect('/profile?mustChange=1');
+  if (user) redirect('/');
   const params = await searchParams;
 
   return (

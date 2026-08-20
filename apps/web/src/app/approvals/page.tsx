@@ -1,9 +1,7 @@
 import { requireUser } from '@/lib/auth';
 import { AppShell } from '@/components/shell';
 import { listApprovals, listCompaniesForUser, getMembership } from '@accounting-os/db';
-
-const money = (v: number | string | null) =>
-  v == null ? '-' : new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB' }).format(Number(v));
+import { formatThb } from '@/lib/format';
 
 export default async function ApprovalsPage({
   searchParams,
@@ -34,7 +32,7 @@ export default async function ApprovalsPage({
               <b>{x.memo ?? x.action}</b>
               <span>{x.txn_date ? String(x.txn_date).slice(0,10) : ''} · {x.source_type} · โดย {x.requested_by_name}</span>
             </div>
-            <div><strong>{money(x.amount)}</strong><span className={x.status === 'APPROVED' ? 'posted' : 'draftText'}>{x.status}</span></div>
+            <div><strong>{formatThb(x.amount)}</strong><span className={x.status === 'APPROVED' ? 'posted' : 'draftText'}>{x.status}</span></div>
             <div className="approvalActions">
               {x.status === 'PENDING' && membership?.can_approve ? (
                 <>

@@ -6,7 +6,7 @@ export default async function ProfilePage({
 }: {
   searchParams: Promise<{ ok?: string; error?: string; mustChange?: string }>;
 }) {
-  const user = await requireUser();
+  const user = await requireUser({ allowMustChangePassword: true });
   const params = await searchParams;
   return (
     <AppShell user={user}>

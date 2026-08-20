@@ -6,15 +6,9 @@ import {
 } from '@accounting-os/db';
 import { requireUser } from '@/lib/auth';
 import { AppShell } from '@/components/shell';
+import { formatThaiDate, formatThb } from '@/lib/format';
 
 export const dynamic = 'force-dynamic';
-
-const money = (v: string | number) =>
-  new Intl.NumberFormat('th-TH', {
-    style: 'currency',
-    currency: 'THB',
-    maximumFractionDigits: 2,
-  }).format(Number(v));
 
 export default async function Home({
   searchParams,
@@ -68,10 +62,10 @@ export default async function Home({
       </section>
 
       <section className="kpis">
-        <article className="card"><span>รายรับสะสม</span><strong>{money(summary.revenue)}</strong><small>Posted Ledger</small></article>
-        <article className="card"><span>รายจ่ายสะสม</span><strong>{money(summary.expense)}</strong><small>Posted Ledger</small></article>
-        <article className="card"><span>กำไรเบื้องต้น</span><strong>{money(summary.profit)}</strong><small>Revenue - Expense</small></article>
-        <article className="card"><span>เงินสด / ธนาคาร</span><strong>{money(summary.cash_balance)}</strong><small>{accounts.length} บัญชี</small></article>
+        <article className="card"><span>รายรับสะสม</span><strong>{formatThb(summary.revenue)}</strong><small>Posted Ledger</small></article>
+        <article className="card"><span>รายจ่ายสะสม</span><strong>{formatThb(summary.expense)}</strong><small>Posted Ledger</small></article>
+        <article className="card"><span>กำไรเบื้องต้น</span><strong>{formatThb(summary.profit)}</strong><small>Revenue - Expense</small></article>
+        <article className="card"><span>เงินสด / ธนาคาร</span><strong>{formatThb(summary.cash_balance)}</strong><small>{accounts.length} บัญชี</small></article>
       </section>
 
       <section className="grid">
@@ -115,7 +109,7 @@ export default async function Home({
           <div className="tr th"><span>วันที่</span><span>เลขที่</span><span>รายละเอียด</span><span>สถานะ</span></div>
           {journals.map((j: any) => (
             <div className="tr" key={j.id}>
-              <span>{new Date(j.txn_date).toLocaleDateString('th-TH')}</span>
+              <span>{formatThaiDate(String(j.txn_date).slice(0, 10))}</span>
               <span>{j.entry_no ?? 'DRAFT'}</span>
               <span>{j.memo}</span>
               <span><b className={j.status === 'POSTED' ? 'posted' : 'draftText'}>{j.status}</b></span>

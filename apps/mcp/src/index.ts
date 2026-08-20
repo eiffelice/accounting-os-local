@@ -176,6 +176,8 @@ function buildServer() {
         paymentDate: isoDate.optional(),
         invoiceDate: isoDate.optional(),
         importDate: isoDate.optional(),
+        ownershipTransferDate: isoDate.optional(),
+        serviceUseDate: isoDate.optional(),
       }),
     },
     async (input) => {

@@ -18,7 +18,12 @@ try {
 
   for (const file of files) {
     console.log(`test ${file}`);
-    await client.query(await readFile(path.join(process.cwd(), file), 'utf8'));
+    await client.query('BEGIN');
+    try {
+      await client.query(await readFile(path.join(process.cwd(), file), 'utf8'));
+    } finally {
+      await client.query('ROLLBACK');
+    }
   }
 } finally {
   await client.end();

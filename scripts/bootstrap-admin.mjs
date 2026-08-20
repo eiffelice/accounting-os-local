@@ -23,19 +23,36 @@ const client = new pg.Client({ connectionString: databaseUrl });
 await client.connect();
 try {
   await client.query('BEGIN');
-  const count = await client.query(`SELECT count(*)::int AS n FROM app_users`);
+  const count = await client.query(
+    `SELECT count(*)::int AS n
+     FROM app_users
+     WHERE is_active=true AND password_hash IS NOT NULL`
+  );
   if (count.rows[0].n > 0) {
     await client.query('COMMIT');
     console.log('Admin bootstrap skipped: at least one user already exists.');
     process.exit(0);
   }
 
-  const user = await client.query(
-    `INSERT INTO app_users(email, display_name, password_hash, must_change_password)
-     VALUES($1,$2,$3,true)
-     RETURNING id`,
-    [email, displayName, passwordHash(password)]
+  const existing = await client.query(
+    `SELECT id FROM app_users WHERE lower(email)=lower($1) FOR UPDATE`,
+    [email]
   );
+  const user = existing.rows[0]
+    ? await client.query(
+        `UPDATE app_users
+         SET display_name=$2, password_hash=$3, must_change_password=true,
+             is_active=true, failed_login_count=0, locked_until=NULL
+         WHERE id=$1
+         RETURNING id`,
+        [existing.rows[0].id, displayName, passwordHash(password)]
+      )
+    : await client.query(
+        `INSERT INTO app_users(email, display_name, password_hash, must_change_password)
+         VALUES($1,$2,$3,true)
+         RETURNING id`,
+        [email, displayName, passwordHash(password)]
+      );
 
   const mcp = await client.query(
     `INSERT INTO mcp_identities(user_id, name, token_hash, scopes)
@@ -46,7 +63,7 @@ try {
 
   await client.query(
     `INSERT INTO audit_events(actor_user_id, event_type, resource_type, resource_id, payload)
-     VALUES($1,'INITIAL_ADMIN_BOOTSTRAPPED','app_user',$1,'{}'::jsonb)`,
+     VALUES($1::uuid,'INITIAL_ADMIN_BOOTSTRAPPED','app_user',$1::text,'{}'::jsonb)`,
     [user.rows[0].id]
   );
   await client.query('COMMIT');

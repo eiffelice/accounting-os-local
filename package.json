@@ -13,7 +13,7 @@
     "bootstrap:admin": "node scripts/bootstrap-admin.mjs",
     "build": "npm --workspace apps/web run build && npm --workspace apps/mcp run build",
     "typecheck": "npm --workspace packages/db run typecheck && npm --workspace apps/mcp run typecheck && npm --workspace apps/web run typecheck",
-    "test:db": "npm run migrate && node scripts/run-db-tests.mjs"
+    "test:db": "npm run migrate && node scripts/test-migration-rollback.mjs && npx --no-install tsx scripts/test-security-boundaries.ts && node scripts/run-db-tests.mjs"
   },
   "engines": {
     "node": ">=20.9"

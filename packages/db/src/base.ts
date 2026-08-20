@@ -20,4 +20,5 @@ export type LocalUser = {
   email: string;
   display_name: string;
   is_active: boolean;
+  must_change_password: boolean;
 };

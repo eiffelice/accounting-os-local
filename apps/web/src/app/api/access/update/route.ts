@@ -17,7 +17,7 @@ export async function POST(request: Request) {
       canCreateDraft: form.get('canCreateDraft') === 'on',
       canApprove: form.get('canApprove') === 'on',
       canPost: form.get('canPost') === 'on',
-      approvalLimit: limitText ? Number(limitText) : null,
+      approvalLimit: limitText || null,
     });
     return NextResponse.redirect(new URL(`/access?company=${companyId}&ok=1`, request.url), 303);
   } catch (e) {

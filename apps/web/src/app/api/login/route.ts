@@ -15,6 +15,9 @@ export async function POST(request: Request) {
     const form = await request.formData();
     const email = String(form.get('email') ?? '').trim();
     const password = String(form.get('password') ?? '');
+    if (email.length < 3 || email.length > 254 || password.length < 1 || password.length > 1024) {
+      return NextResponse.redirect(new URL('/login?error=1', request.url), 303);
+    }
 
     const user = await getUserForLogin(email);
     if (!user || user.is_locked || !verifyPassword(password, user.password_hash)) {

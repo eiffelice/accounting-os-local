@@ -83,10 +83,10 @@ export async function createEmployeeMembership(
 
     const presets = {
       CFO: [true, true, true, true, null],
-      ACCOUNTING_MANAGER: [true, true, true, true, 5000000],
-      ACCOUNTANT: [true, true, false, false, 50000],
-      STAFF: [true, true, false, false, 0],
-      AUDITOR: [true, false, false, false, 0],
+      ACCOUNTING_MANAGER: [true, true, true, true, '5000000.00'],
+      ACCOUNTANT: [true, true, false, false, '50000.00'],
+      STAFF: [true, true, false, false, '0.00'],
+      AUDITOR: [true, false, false, false, '0.00'],
     } as const;
     const [canRead, canDraft, canApprove, canPost, limit] = presets[input.role];
 
@@ -149,7 +149,7 @@ export async function updateMembership(
     canCreateDraft: boolean;
     canApprove: boolean;
     canPost: boolean;
-    approvalLimit: number | null;
+    approvalLimit: string | null;
   }
 ) {
   const actorMembership = await getMembership(actorId, companyId);
@@ -159,6 +159,12 @@ export async function updateMembership(
 
   const targetMembership = await getMembership(userId, companyId);
   if (!targetMembership) throw new Error('target membership not found');
+  if (!['OWNER','CFO','ACCOUNTING_MANAGER','ACCOUNTANT','STAFF','AUDITOR'].includes(input.role)) {
+    throw new Error('invalid role');
+  }
+  if (input.approvalLimit !== null && !/^\d{1,15}(?:\.\d{1,2})?$/.test(input.approvalLimit)) {
+    throw new Error('approval limit must be a non-negative decimal string with max 2 decimals');
+  }
 
   if (targetMembership.role === 'OWNER' && input.role !== 'OWNER') {
     const { rows } = await pool.query(

@@ -94,7 +94,12 @@ export async function createCompany(
       [companyId]
     );
 
-    const year = new Date().getFullYear();
+    const { rows: yearRows } = await client.query<{ year: number }>(
+      `SELECT extract(year FROM now() AT TIME ZONE accounting_timezone)::int AS year
+       FROM companies WHERE id=$1`,
+      [companyId]
+    );
+    const year = yearRows[0].year;
     await client.query(
       `INSERT INTO fiscal_periods(company_id, period_key, start_date, end_date, status)
        VALUES($1,$2,$3,$4,'OPEN')`,

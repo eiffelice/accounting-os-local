@@ -6,7 +6,7 @@ import { assertSameOrigin } from '@/lib/request';
 export async function POST(request: Request) {
   try {
     assertSameOrigin(request);
-    const user = await currentUser();
+    const user = await currentUser({ allowMustChangePassword: true });
     if (!user) return NextResponse.redirect(new URL('/login', request.url), 303);
     const form = await request.formData();
     const next = String(form.get('newPassword') ?? '');

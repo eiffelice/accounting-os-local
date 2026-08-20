@@ -100,16 +100,25 @@ export async function calculateVat(input: {
   paymentDate?: string;
   invoiceDate?: string;
   importDate?: string;
+  ownershipTransferDate?: string;
+  serviceUseDate?: string;
 }) {
   assertMoneyString(input.amount);
   assertIsoDate(input.transactionDate);
-  for (const value of [input.deliveryDate, input.paymentDate, input.invoiceDate, input.importDate]) {
+  for (const value of [
+    input.deliveryDate,
+    input.paymentDate,
+    input.invoiceDate,
+    input.importDate,
+    input.ownershipTransferDate,
+    input.serviceUseDate,
+  ]) {
     if (value) assertIsoDate(value);
   }
 
   const taxPoint = await pool.query<{ tax_point_date: string }>(
     `SELECT tax_resolve_vat_tax_point(
-       $1,$2::date,$3::date,$4::date,$5::date,$6::date
+       $1,$2::date,$3::date,$4::date,$5::date,$6::date,$7::date,$8::date
      )::text AS tax_point_date`,
     [
       input.transactionType,
@@ -118,6 +127,8 @@ export async function calculateVat(input: {
       input.paymentDate ?? null,
       input.invoiceDate ?? null,
       input.importDate ?? null,
+      input.ownershipTransferDate ?? null,
+      input.serviceUseDate ?? null,
     ]
   );
   const taxPointDate = taxPoint.rows[0].tax_point_date;

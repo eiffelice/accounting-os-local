@@ -39,11 +39,11 @@ npm install
 Write-Host "Applying versioned migrations..."
 npm run migrate
 
-Write-Host "Running v0.3 tax golden QA..." -ForegroundColor Cyan
-npm run test:db
-
 Write-Host "Bootstrapping initial admin if database has no users..."
 npm run bootstrap:admin
+
+Write-Host "Running v0.3 tax golden QA..." -ForegroundColor Cyan
+npm run test:db
 
 Write-Host ""
 Write-Host "Database: 127.0.0.1:5432 (local only)"
