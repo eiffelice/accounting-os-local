@@ -7,6 +7,7 @@ import {
 import { requireUser } from '@/lib/auth';
 import { AppShell } from '@/components/shell';
 import { formatThaiDate, formatThb } from '@/lib/format';
+import { BankLogo } from '@/components/bank-logo';
 
 export const dynamic = 'force-dynamic';
 
@@ -74,8 +75,8 @@ export default async function Home({
           <div className="accountList">
             {accounts.map((a: any) => (
               <div className="accountRow" key={a.id}>
-                <div className="accountIcon">{a.kind === 'CASH' ? '฿' : '🏦'}</div>
-                <div className="grow"><b>{a.name}</b><span>{a.institution ?? 'เงินสด'} · {a.masked_number ?? 'Local cash'}</span></div>
+                <BankLogo slug={a.bank_slug} color={a.bank_brand_color} name={a.bank_name} kind={a.kind}/>
+                <div className="grow"><b>{a.name}</b><span>{a.bank_name ?? a.institution ?? 'เงินสด'} · {a.masked_number ?? 'Local cash'}</span></div>
                 <div className="right"><b>{a.currency}</b><span>GL {a.gl_code}</span></div>
               </div>
             ))}
@@ -111,7 +112,10 @@ export default async function Home({
             <div className="tr" key={j.id}>
               <span>{formatThaiDate(String(j.txn_date).slice(0, 10))}</span>
               <span>{j.entry_no ?? 'DRAFT'}</span>
-              <span>{j.memo}</span>
+              <span className="journalDescription">
+                <BankLogo slug={j.bank_slug} color={j.bank_brand_color} name={j.bank_name} kind={j.financial_account_kind} small/>
+                <span><b>{j.memo}</b><small>{j.financial_account_name ?? 'Manual journal'}</small></span>
+              </span>
               <span><b className={j.status === 'POSTED' ? 'posted' : 'draftText'}>{j.status}</b></span>
             </div>
           ))}

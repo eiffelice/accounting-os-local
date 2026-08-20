@@ -46,10 +46,24 @@ export async function dashboardSummary(companyId: string) {
 
 export async function recentJournals(companyId: string, limit = 10) {
   const { rows } = await pool.query(
-    `SELECT id, entry_no, txn_date, status, source_type, memo, posted_at, created_by
-     FROM journal_entries
-     WHERE company_id=$1
-     ORDER BY txn_date DESC, created_at DESC
+    `SELECT je.id, je.entry_no, je.txn_date, je.status, je.source_type, je.memo,
+            je.posted_at, je.created_by, fa.financial_account_name,
+            b.slug AS bank_slug, b.name AS bank_name, b.brand_color AS bank_brand_color,
+            fa.financial_account_kind
+     FROM journal_entries je
+     LEFT JOIN LATERAL (
+       SELECT account.name AS financial_account_name,
+              account.kind AS financial_account_kind,
+              account.bank_slug
+       FROM journal_lines line
+       JOIN financial_accounts account ON account.id=line.financial_account_id
+       WHERE line.journal_entry_id=je.id
+       ORDER BY line.line_no
+       LIMIT 1
+     ) fa ON true
+     LEFT JOIN bank_directory b ON b.slug=fa.bank_slug
+     WHERE je.company_id=$1
+     ORDER BY je.txn_date DESC, je.created_at DESC
      LIMIT $2`,
     [companyId, limit]
   );

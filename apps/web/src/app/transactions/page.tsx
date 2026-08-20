@@ -7,6 +7,8 @@ import {
   listRevenueAccounts,
   recentJournals,
 } from '@accounting-os/db';
+import { BankLogo } from '@/components/bank-logo';
+import { FinancialAccountPicker } from '@/components/financial-account-picker';
 
 export default async function TransactionsPage({
   searchParams,
@@ -41,9 +43,7 @@ export default async function TransactionsPage({
           <form className="formStack" action="/api/transactions/expense" method="post">
             <input type="hidden" name="companyId" value={selected.id} />
             <label>วันที่<input type="date" name="txnDate" required /></label>
-            <label>บัญชีที่จ่าย
-              <select name="financialAccountId" required>{accounts.map((a: any) => <option key={a.id} value={a.id}>{a.name} ({a.masked_number ?? a.kind})</option>)}</select>
-            </label>
+            <FinancialAccountPicker accounts={accounts} legend="บัญชีที่จ่าย"/>
             <label>หมวดค่าใช้จ่าย
               <select name="accountCode" required>{expenses.map((a: any) => <option key={a.id} value={a.code}>{a.code} — {a.name_th}</option>)}</select>
             </label>
@@ -58,9 +58,7 @@ export default async function TransactionsPage({
           <form className="formStack" action="/api/transactions/income" method="post">
             <input type="hidden" name="companyId" value={selected.id} />
             <label>วันที่<input type="date" name="txnDate" required /></label>
-            <label>บัญชีที่รับเงิน
-              <select name="financialAccountId" required>{accounts.map((a: any) => <option key={a.id} value={a.id}>{a.name} ({a.masked_number ?? a.kind})</option>)}</select>
-            </label>
+            <FinancialAccountPicker accounts={accounts} legend="บัญชีที่รับเงิน"/>
             <label>หมวดรายได้
               <select name="accountCode" required>{revenues.map((a: any) => <option key={a.id} value={a.code}>{a.code} — {a.name_th}</option>)}</select>
             </label>
@@ -75,7 +73,17 @@ export default async function TransactionsPage({
         <h3>Journal ล่าสุด</h3>
         <div className="table">
           <div className="tr th"><span>วันที่</span><span>เลขที่</span><span>รายละเอียด</span><span>สถานะ</span></div>
-          {journals.map((j: any) => <div className="tr" key={j.id}><span>{String(j.txn_date).slice(0,10)}</span><span>{j.entry_no ?? 'DRAFT'}</span><span>{j.memo}</span><span>{j.status}</span></div>)}
+          {journals.map((j: any) => (
+            <div className="tr" key={j.id}>
+              <span>{String(j.txn_date).slice(0,10)}</span>
+              <span>{j.entry_no ?? 'DRAFT'}</span>
+              <span className="journalDescription">
+                <BankLogo slug={j.bank_slug} color={j.bank_brand_color} name={j.bank_name} kind={j.financial_account_kind} small/>
+                <span><b>{j.memo}</b><small>{j.financial_account_name ?? 'Manual journal'}</small></span>
+              </span>
+              <span>{j.status}</span>
+            </div>
+          ))}
         </div>
       </section>
     </AppShell>

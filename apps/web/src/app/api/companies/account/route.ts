@@ -13,6 +13,7 @@ export async function POST(request: Request) {
     await createFinancialAccount(user.id, companyId, {
       kind: String(form.get('kind')) as 'BANK'|'CASH'|'E_WALLET'|'CREDIT_CARD',
       name: String(form.get('name') ?? ''),
+      bankSlug: String(form.get('bankSlug') ?? ''),
       institution: String(form.get('institution') ?? ''),
       maskedNumber: String(form.get('maskedNumber') ?? ''),
       currency: 'THB',

@@ -2,6 +2,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import {
   assertCompanyAccess,
   assertMcpScope,
+  getMembership,
   getMcpIdentity,
   hashSessionToken,
   makePasswordHash,
@@ -37,6 +38,7 @@ try {
      VALUES($1,$2,'Security QA',$3,true)`,
     [userId, `security-${userId}@local.invalid`, encoded]
   );
+
   await pool.query(
     `INSERT INTO companies(id,code,legal_name,display_name)
      VALUES($1,$2,'Security QA','Security QA')`,
@@ -46,6 +48,19 @@ try {
     `INSERT INTO company_memberships(
        user_id,company_id,role,can_read,can_create_draft,can_approve,can_post
      ) VALUES($1,$2,'STAFF',true,false,false,false)`,
+    [userId, companyId]
+  );
+  await pool.query(
+    `UPDATE company_memberships SET expires_at=now()-interval '1 minute'
+     WHERE user_id=$1 AND company_id=$2`,
+    [userId, companyId]
+  );
+  if (await getMembership(userId, companyId)) {
+    throw new Error('expired company membership was accepted');
+  }
+  await pool.query(
+    `UPDATE company_memberships SET expires_at=NULL
+     WHERE user_id=$1 AND company_id=$2`,
     [userId, companyId]
   );
   await pool.query(
