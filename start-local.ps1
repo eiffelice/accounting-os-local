@@ -3,8 +3,21 @@ $ErrorActionPreference = "Stop"
 Write-Host "== Accounting OS Local v0.3 ==" -ForegroundColor Cyan
 
 if (-not (Test-Path ".env")) {
-  Copy-Item ".env.example" ".env"
-  Write-Host "Created .env from .env.example"
+  $dbPassword = [Convert]::ToBase64String([System.Security.Cryptography.RandomNumberGenerator]::GetBytes(32)).TrimEnd("=")
+  $databaseUrl = "postgresql://accounting:$dbPassword@127.0.0.1:5432/accounting_os"
+  @"
+ACCOUNTING_DB_PASSWORD=$dbPassword
+DATABASE_URL=$databaseUrl
+INITIAL_ADMIN_EMAIL=owner@local.accounting
+INITIAL_ADMIN_DISPLAY_NAME=Local Owner
+ACCOUNTING_MCP_IDENTITY_ID=
+ACCOUNTING_MCP_TOKEN=
+APP_BASE_URL=http://localhost:3000
+SESSION_TTL_HOURS=12
+LOCAL_DOCUMENTS_DIR=./data/documents
+COMPANY_TIMEZONE=Asia/Bangkok
+"@ | Set-Content ".env" -NoNewline
+  Write-Host "Created .env with a random local database password"
 }
 
 New-Item -ItemType Directory -Force -Path ".\data\documents" | Out-Null
@@ -20,27 +33,17 @@ for ($i=0; $i -lt 30; $i++) {
   Start-Sleep -Seconds 1
 }
 
-$migrations = @(
-  ".\db\migrations\002_v0_2.sql",
-  ".\db\migrations\002_5_v0_3_pre.sql",
-  ".\db\migrations\003_v0_3_tax.sql",
-  ".\db\migrations\004_v0_3_tax_patch.sql",
-  ".\db\migrations\005_v0_3_wht_contract_threshold.sql",
-  ".\db\migrations\006_v0_3_wht_engine.sql"
-)
-
-foreach ($migration in $migrations) {
-  Write-Host "Applying $migration ..."
-  Get-Content $migration -Raw |
-    docker compose exec -T db psql -v ON_ERROR_STOP=1 -U accounting -d accounting_os
-}
-
-Write-Host "Running v0.3 tax golden QA..." -ForegroundColor Cyan
-Get-Content ".\db\qa_v0_3_tax.sql" -Raw |
-  docker compose exec -T db psql -v ON_ERROR_STOP=1 -U accounting -d accounting_os
-
 Write-Host "Installing Node dependencies..."
 npm install
+
+Write-Host "Applying versioned migrations..."
+npm run migrate
+
+Write-Host "Running v0.3 tax golden QA..." -ForegroundColor Cyan
+npm run test:db
+
+Write-Host "Bootstrapping initial admin if database has no users..."
+npm run bootstrap:admin
 
 Write-Host ""
 Write-Host "Database: 127.0.0.1:5432 (local only)"
@@ -48,7 +51,6 @@ Write-Host "Documents: .\data\documents (local only)"
 Write-Host "Web UI: http://localhost:3000" -ForegroundColor Green
 Write-Host "Tax Core: VAT/WHT deterministic rules enabled" -ForegroundColor Green
 Write-Host ""
-Write-Host "Demo login: owner@local.accounting / change-me-now" -ForegroundColor Yellow
-Write-Host "CHANGE THE DEMO PASSWORD before using real data." -ForegroundColor Yellow
+Write-Host "Use the generated initial admin password shown above once, then change it." -ForegroundColor Yellow
 
 npm run dev:web

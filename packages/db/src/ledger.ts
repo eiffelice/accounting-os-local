@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
-import { pool } from './base.js';
-import { assertCompanyAccess } from './access.js';
+import { pool } from './base.ts';
+import { assertCompanyAccess } from './access.ts';
 
 export async function trialBalance(companyId: string) {
   const { rows } = await pool.query(
@@ -28,7 +28,12 @@ export async function dashboardSummary(companyId: string) {
     `SELECT
        COALESCE(sum(CASE WHEN a.account_type='REVENUE' THEN jl.credit-jl.debit ELSE 0 END),0)::text AS revenue,
        COALESCE(sum(CASE WHEN a.account_type='EXPENSE' THEN jl.debit-jl.credit ELSE 0 END),0)::text AS expense,
-       COALESCE(sum(CASE WHEN a.account_type='ASSET' AND a.system_key IN ('BANK','CASH') THEN jl.debit-jl.credit ELSE 0 END),0)::text AS cash_balance
+       COALESCE(sum(CASE WHEN a.account_type='ASSET' AND a.system_key IN ('BANK','CASH') THEN jl.debit-jl.credit ELSE 0 END),0)::text AS cash_balance,
+       (
+         COALESCE(sum(CASE WHEN a.account_type='REVENUE' THEN jl.credit-jl.debit ELSE 0 END),0)
+         -
+         COALESCE(sum(CASE WHEN a.account_type='EXPENSE' THEN jl.debit-jl.credit ELSE 0 END),0)
+       )::text AS profit
      FROM journal_entries je
      JOIN journal_lines jl ON jl.journal_entry_id=je.id
      JOIN chart_of_accounts a ON a.id=jl.account_id
@@ -36,10 +41,7 @@ export async function dashboardSummary(companyId: string) {
     [companyId]
   );
   const r = rows[0] ?? { revenue: '0', expense: '0', cash_balance: '0' };
-  return {
-    ...r,
-    profit: (Number(r.revenue) - Number(r.expense)).toFixed(2),
-  };
+  return r;
 }
 
 export async function recentJournals(companyId: string, limit = 10) {
@@ -60,7 +62,7 @@ async function createDraft(
     companyId: string;
     financialAccountId: string;
     accountCode: string;
-    amount: number;
+    amount: string;
     txnDate: string;
     description: string;
     idempotencyKey: string;
@@ -68,8 +70,8 @@ async function createDraft(
     kind: 'EXPENSE' | 'INCOME';
   }
 ) {
-  if (!Number.isFinite(input.amount) || input.amount <= 0) {
-    throw new Error('amount must be > 0');
+  if (!/^\d{1,15}(?:\.\d{1,2})?$/.test(input.amount) || Number(input.amount) <= 0) {
+    throw new Error('amount must be a positive decimal string with max 2 decimals');
   }
   await assertCompanyAccess(input.actorId, input.companyId, 'create_draft');
 
@@ -82,7 +84,7 @@ async function createDraft(
         companyId: input.companyId,
         financialAccountId: input.financialAccountId,
         accountCode: input.accountCode,
-        amount: input.amount.toFixed(2),
+        amount: input.amount,
         txnDate: input.txnDate,
         description: input.description,
         kind: input.kind,
@@ -137,7 +139,7 @@ async function createDraft(
       ]
     );
     const id = je.rows[0].id;
-    const amount = input.amount.toFixed(2);
+    const amount = input.amount;
 
     if (input.kind === 'EXPENSE') {
       await client.query(
@@ -220,7 +222,7 @@ export async function createExpenseDraft(input: {
   companyId: string;
   financialAccountId: string;
   expenseAccountCode: string;
-  amount: number;
+  amount: string;
   txnDate: string;
   description: string;
   idempotencyKey: string;
@@ -239,7 +241,7 @@ export async function createIncomeDraft(input: {
   companyId: string;
   financialAccountId: string;
   revenueAccountCode: string;
-  amount: number;
+  amount: string;
   txnDate: string;
   description: string;
   idempotencyKey: string;

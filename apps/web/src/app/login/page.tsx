@@ -22,15 +22,15 @@ export default async function LoginPage({
         <form className="formStack" action="/api/login" method="post">
           <label>
             อีเมล
-            <input name="email" type="email" defaultValue="owner@local.accounting" required />
+            <input name="email" type="email" autoComplete="username" required />
           </label>
           <label>
             รหัสผ่าน
-            <input name="password" type="password" defaultValue="change-me-now" required />
+            <input name="password" type="password" autoComplete="current-password" required />
           </label>
           <button className="primaryBtn" type="submit">เข้าสู่ระบบ Local</button>
         </form>
-        <small className="warnText">Demo: เปลี่ยนรหัสผ่านก่อนใช้ข้อมูลจริง</small>
+        <small className="warnText">ใช้รหัสผ่านเริ่มต้นที่ระบบสร้างให้ตอน bootstrap แล้วเปลี่ยนทันที</small>
       </section>
     </main>
   );

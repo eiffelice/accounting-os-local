@@ -6,7 +6,7 @@ services:
     environment:
       POSTGRES_DB: accounting_os
       POSTGRES_USER: accounting
-      POSTGRES_PASSWORD: accounting_local_only
+      POSTGRES_PASSWORD: ${ACCOUNTING_DB_PASSWORD:?ACCOUNTING_DB_PASSWORD must be set in .env}
     ports:
       - "127.0.0.1:5432:5432"
     volumes:

@@ -1,8 +1,9 @@
-import { pool } from './base.js';
-import { assertCompanyAccess } from './access.js';
+import { pool } from './base.ts';
+import { assertCompanyAccess } from './access.ts';
 
 export type TaxType = 'VAT' | 'WHT';
 export type VatMode = 'EXCLUSIVE' | 'INCLUSIVE';
+export type VatTransactionType = 'SALE_GOODS' | 'SERVICE' | 'IMPORT' | 'ADVANCE' | 'DEPOSIT';
 export type WhtTransactionType = 'SERVICE' | 'RENT' | 'ADVERTISING';
 export type PayeeType = 'INDIVIDUAL' | 'LEGAL_ENTITY';
 
@@ -94,10 +95,33 @@ export async function calculateVat(input: {
   amount: string;
   mode: VatMode;
   transactionDate: string;
+  transactionType: VatTransactionType;
+  deliveryDate?: string;
+  paymentDate?: string;
+  invoiceDate?: string;
+  importDate?: string;
 }) {
   assertMoneyString(input.amount);
   assertIsoDate(input.transactionDate);
-  const rule = await resolveTaxRule('VAT', 'VAT_STANDARD', input.transactionDate);
+  for (const value of [input.deliveryDate, input.paymentDate, input.invoiceDate, input.importDate]) {
+    if (value) assertIsoDate(value);
+  }
+
+  const taxPoint = await pool.query<{ tax_point_date: string }>(
+    `SELECT tax_resolve_vat_tax_point(
+       $1,$2::date,$3::date,$4::date,$5::date,$6::date
+     )::text AS tax_point_date`,
+    [
+      input.transactionType,
+      input.transactionDate,
+      input.deliveryDate ?? null,
+      input.paymentDate ?? null,
+      input.invoiceDate ?? null,
+      input.importDate ?? null,
+    ]
+  );
+  const taxPointDate = taxPoint.rows[0].tax_point_date;
+  const rule = await resolveTaxRule('VAT', 'VAT_STANDARD', taxPointDate);
 
   const { rows } = await pool.query<{
     base_amount: string;
@@ -122,6 +146,9 @@ export async function calculateVat(input: {
       effectiveTo: rule.effective_to,
     },
     transactionDate: input.transactionDate,
+    transactionType: input.transactionType,
+    taxPointDate,
+    taxPeriod: taxPointDate.slice(0, 7),
     mode: input.mode,
     baseAmount: rows[0].base_amount,
     vatAmount: rows[0].tax_amount,
@@ -277,7 +304,7 @@ export async function taxDashboard(actorId: string, companyId: string, period: s
      FROM tax_calculation_records
      WHERE company_id=$1
        AND status='FINAL'
-       AND to_char(transaction_date,'YYYY-MM')=$2
+       AND tax_period=$2
      GROUP BY tax_type, COALESCE(form_code,'UNASSIGNED')
      ORDER BY tax_type, form_code`,
     [companyId, period]

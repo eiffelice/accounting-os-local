@@ -4,10 +4,11 @@ import * as z from 'zod/v4';
 
 import {
   assertCompanyAccess,
+  assertMcpScope,
   calculateVat,
   calculateWht,
   createExpenseDraft,
-  getActorByEmail,
+  getMcpIdentity,
   listCompanies,
   listFinancialAccounts,
   listTaxRules,
@@ -16,13 +17,15 @@ import {
   trialBalance,
 } from '@accounting-os/db';
 
-const actorEmail =
-  process.env.ACCOUNTING_ACTOR_EMAIL ?? 'owner@local.accounting';
-
 async function actor() {
-  const user = await getActorByEmail(actorEmail);
-  if (!user) throw new Error(`Configured actor not found: ${actorEmail}`);
-  return user;
+  const identityId = process.env.ACCOUNTING_MCP_IDENTITY_ID;
+  const token = process.env.ACCOUNTING_MCP_TOKEN;
+  if (!identityId || !token) {
+    throw new Error('ACCOUNTING_MCP_IDENTITY_ID and ACCOUNTING_MCP_TOKEN are required');
+  }
+  const identity = await getMcpIdentity(identityId, token);
+  if (!identity) throw new Error('MCP identity not found or token invalid');
+  return identity;
 }
 
 function asText(data: unknown) {
@@ -38,7 +41,7 @@ const money = z.string().regex(/^\d{1,15}(?:\.\d{1,2})?$/);
 function buildServer() {
   const server = new McpServer({
     name: 'accounting-os-local',
-    version: '0.3.0',
+    version: '0.3.1',
   });
 
   server.registerTool(
@@ -50,6 +53,7 @@ function buildServer() {
     },
     async () => {
       const u = await actor();
+      assertMcpScope(u.scopes, 'read');
       const companies = await listCompanies();
       const allowed = [];
       for (const company of companies) {
@@ -71,6 +75,7 @@ function buildServer() {
     },
     async ({ companyId }) => {
       const u = await actor();
+      assertMcpScope(u.scopes, 'read');
       await assertCompanyAccess(u.id, companyId, 'read');
       return asText(await listFinancialAccounts(companyId));
     }
@@ -85,6 +90,7 @@ function buildServer() {
     },
     async ({ companyId }) => {
       const u = await actor();
+      assertMcpScope(u.scopes, 'read');
       await assertCompanyAccess(u.id, companyId, 'read');
       return asText(await trialBalance(companyId));
     }
@@ -101,6 +107,7 @@ function buildServer() {
     },
     async ({ companyId, limit }) => {
       const u = await actor();
+      assertMcpScope(u.scopes, 'read');
       await assertCompanyAccess(u.id, companyId, 'read');
       return asText(await recentJournals(companyId, limit));
     }
@@ -115,7 +122,7 @@ function buildServer() {
         companyId: z.string().uuid(),
         financialAccountId: z.string().uuid(),
         expenseAccountCode: z.string().min(1).max(30),
-        amount: z.number().positive().max(1000000000),
+        amount: money,
         txnDate: isoDate,
         description: z.string().min(1).max(500),
         idempotencyKey: z.string().min(8).max(200),
@@ -123,6 +130,7 @@ function buildServer() {
     },
     async (input) => {
       const u = await actor();
+      assertMcpScope(u.scopes, 'draft:create');
       const result = await createExpenseDraft({
         actorId: u.id,
         ...input,
@@ -147,8 +155,11 @@ function buildServer() {
         asOf: isoDate.optional(),
       }),
     },
-    async ({ taxType, asOf }) =>
-      asText(await listTaxRules({ taxType, asOf }))
+    async ({ taxType, asOf }) => {
+      const u = await actor();
+      assertMcpScope(u.scopes, 'tax:calculate');
+      return asText(await listTaxRules({ taxType, asOf }));
+    }
   );
 
   server.registerTool(
@@ -160,9 +171,18 @@ function buildServer() {
         amount: money,
         mode: z.enum(['EXCLUSIVE', 'INCLUSIVE']),
         transactionDate: isoDate,
+        transactionType: z.enum(['SALE_GOODS', 'SERVICE', 'IMPORT', 'ADVANCE', 'DEPOSIT']),
+        deliveryDate: isoDate.optional(),
+        paymentDate: isoDate.optional(),
+        invoiceDate: isoDate.optional(),
+        importDate: isoDate.optional(),
       }),
     },
-    async (input) => asText(await calculateVat(input))
+    async (input) => {
+      const u = await actor();
+      assertMcpScope(u.scopes, 'tax:calculate');
+      return asText(await calculateVat(input));
+    }
   );
 
   server.registerTool(
@@ -178,7 +198,11 @@ function buildServer() {
         transactionDate: isoDate,
       }),
     },
-    async (input) => asText(await calculateWht(input))
+    async (input) => {
+      const u = await actor();
+      assertMcpScope(u.scopes, 'tax:calculate');
+      return asText(await calculateWht(input));
+    }
   );
 
   server.registerTool(
@@ -188,12 +212,15 @@ function buildServer() {
         'Return the base Thai tax filing schedule for a YYYY-MM tax period. Read-only. Returned dates must be checked against the Revenue Department calendar for holidays or special extensions.',
       inputSchema: z.object({ period }),
     },
-    async ({ period: taxPeriod }) =>
-      asText(await taxCalendarForPeriod(taxPeriod))
+    async ({ period: taxPeriod }) => {
+      const u = await actor();
+      assertMcpScope(u.scopes, 'tax:calculate');
+      return asText(await taxCalendarForPeriod(taxPeriod));
+    }
   );
 
   return server;
 }
 
 void serveStdio(buildServer);
-console.error('Accounting OS Local v0.3 MCP running over stdio');
+console.error('Accounting OS Local v0.3.1 MCP running over stdio');

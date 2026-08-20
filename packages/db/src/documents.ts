@@ -1,5 +1,5 @@
-import { pool } from './base.js';
-import { assertCompanyAccess } from './access.js';
+import { pool } from './base.ts';
+import { assertCompanyAccess } from './access.ts';
 
 export async function insertLocalDocument(
   actorId: string,

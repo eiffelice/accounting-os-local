@@ -1,5 +1,5 @@
-import { pool } from './base.js';
-import { assertCompanyAccess, getMembership } from './access.js';
+import { pool } from './base.ts';
+import { assertCompanyAccess, getMembership } from './access.ts';
 
 export async function listApprovals(companyId: string, status?: 'PENDING' | 'APPROVED') {
   const params: unknown[] = [companyId];

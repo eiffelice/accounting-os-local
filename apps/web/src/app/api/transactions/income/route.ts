@@ -16,7 +16,7 @@ export async function POST(request: Request) {
       companyId,
       financialAccountId: String(form.get('financialAccountId')),
       revenueAccountCode: String(form.get('accountCode')),
-      amount: Number(form.get('amount')),
+      amount: String(form.get('amount') ?? '').trim(),
       txnDate: String(form.get('txnDate')),
       description: String(form.get('description')),
       idempotencyKey: `human:${user.id}:${randomUUID()}`,

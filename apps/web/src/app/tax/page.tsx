@@ -14,6 +14,18 @@ function rate(bps: number) {
   return `${(bps / 100).toFixed(2).replace(/\.00$/, '')}%`;
 }
 
+function bangkokDateParts() {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Bangkok',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date());
+  const value = (type: string) => parts.find((p) => p.type === type)?.value;
+  const today = `${value('year')}-${value('month')}-${value('day')}`;
+  return { today, period: today.slice(0, 7) };
+}
+
 export default async function TaxPage({
   searchParams,
 }: {
@@ -28,9 +40,7 @@ export default async function TaxPage({
     return <AppShell user={user}><div className="panel">ยังไม่มีบริษัทที่คุณเข้าถึงได้</div></AppShell>;
   }
 
-  const now = new Date();
-  const today = now.toISOString().slice(0, 10);
-  const defaultPeriod = now.toISOString().slice(0, 7);
+  const { today, period: defaultPeriod } = bangkokDateParts();
   const period = /^\d{4}-\d{2}$/.test(params.period ?? '') ? params.period! : defaultPeriod;
 
   const [rules, calendar, profile, summary] = await Promise.all([

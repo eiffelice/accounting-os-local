@@ -87,14 +87,14 @@ Open:
 http://localhost:3000
 ```
 
-### Demo login
+### Initial login
 
 ```text
-owner@local.accounting
-change-me-now
+.\start-local.ps1
 ```
 
-**Change the demo password before putting real accounting data into the system.**
+The first startup creates a random database password in `.env` and prints a one-time
+initial admin password. Use it once, then change it before entering real data.
 
 ## Upgrade an existing local database
 
@@ -103,7 +103,8 @@ git pull
 .\migrate-local.ps1
 ```
 
-The v0.3 migration chain applies:
+The v0.3.1 migration runner records `schema_migrations` checksums and skips
+already-applied migrations. It applies:
 
 ```text
 002_v0_2.sql
@@ -112,6 +113,7 @@ The v0.3 migration chain applies:
 004_v0_3_tax_patch.sql
 005_v0_3_wht_contract_threshold.sql
 006_v0_3_wht_engine.sql
+007_v0_3_1_security_accounting_hardening.sql
         ↓
 qa_v0_3_tax.sql
 ```

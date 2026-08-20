@@ -1,5 +1,5 @@
-import { pool, type Company } from './base.js';
-import { getMembership } from './access.js';
+import { pool, type Company } from './base.ts';
+import { getMembership } from './access.ts';
 
 export async function listCompanies(): Promise<Company[]> {
   const { rows } = await pool.query<Company>(

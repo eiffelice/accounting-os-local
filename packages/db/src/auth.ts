@@ -1,5 +1,5 @@
 import { createHash, randomBytes, timingSafeEqual, pbkdf2Sync } from 'node:crypto';
-import { pool, type LocalUser } from './base.js';
+import { pool, type LocalUser } from './base.ts';
 
 export function hashSessionToken(token: string) {
   return createHash('sha256').update(token).digest('hex');
@@ -46,6 +46,28 @@ export async function changePassword(userId: string, currentPassword: string, ne
   );
 }
 
+export async function recordLoginFailure(email: string) {
+  await pool.query(
+    `UPDATE app_users
+     SET failed_login_count = failed_login_count + 1,
+         locked_until = CASE
+           WHEN failed_login_count + 1 >= 5 THEN now() + interval '15 minutes'
+           ELSE locked_until
+         END
+     WHERE lower(email)=lower($1)`,
+    [email]
+  );
+}
+
+export async function recordLoginSuccess(userId: string) {
+  await pool.query(
+    `UPDATE app_users
+     SET failed_login_count=0, locked_until=NULL
+     WHERE id=$1`,
+    [userId]
+  );
+}
+
 export async function getActorByEmail(email: string) {
   const { rows } = await pool.query<LocalUser>(
     `SELECT id, email, display_name, is_active
@@ -58,7 +80,8 @@ export async function getActorByEmail(email: string) {
 
 export async function getUserForLogin(email: string) {
   const { rows } = await pool.query(
-    `SELECT id, email, display_name, is_active, password_hash, must_change_password
+    `SELECT id, email, display_name, is_active, password_hash, must_change_password,
+            locked_until, locked_until IS NOT NULL AND locked_until > now() AS is_locked
      FROM app_users WHERE lower(email)=lower($1) AND is_active=true`,
     [email]
   );
@@ -105,4 +128,37 @@ export async function revokeSession(token: string) {
      WHERE token_hash=$1 AND revoked_at IS NULL`,
     [hashSessionToken(token)]
   );
+}
+
+export async function getMcpIdentity(identityId: string, token: string) {
+  const { rows } = await pool.query<{
+    id: string;
+    mcp_identity_id: string;
+    user_id: string;
+    email: string;
+    display_name: string;
+    scopes: string[];
+  }>(
+    `SELECT u.id, m.id AS mcp_identity_id, m.user_id, u.email, u.display_name, m.scopes
+     FROM mcp_identities m
+     JOIN app_users u ON u.id=m.user_id
+     WHERE m.id=$1
+       AND m.token_hash=$2
+       AND m.is_active=true
+       AND u.is_active=true`,
+    [identityId, hashSessionToken(token)]
+  );
+  if (rows[0]) {
+    await pool.query(`UPDATE mcp_identities SET last_used_at=now() WHERE id=$1`, [identityId]);
+  }
+  return rows[0] ?? null;
+}
+
+export function assertMcpScope(scopes: string[], required: string) {
+  if (scopes.includes('tax_submit') || scopes.includes('payment_execute')) {
+    throw new Error('forbidden MCP scope configured');
+  }
+  if (!scopes.includes(required)) {
+    throw new Error(`MCP scope required: ${required}`);
+  }
 }

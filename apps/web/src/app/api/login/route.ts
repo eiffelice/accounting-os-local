@@ -1,5 +1,11 @@
 import { NextResponse } from 'next/server';
-import { createSession, getUserForLogin, verifyPassword } from '@accounting-os/db';
+import {
+  createSession,
+  getUserForLogin,
+  recordLoginFailure,
+  recordLoginSuccess,
+  verifyPassword,
+} from '@accounting-os/db';
 import { assertSameOrigin } from '@/lib/request';
 import { SESSION_COOKIE } from '@/lib/auth';
 
@@ -11,10 +17,12 @@ export async function POST(request: Request) {
     const password = String(form.get('password') ?? '');
 
     const user = await getUserForLogin(email);
-    if (!user || !verifyPassword(password, user.password_hash)) {
+    if (!user || user.is_locked || !verifyPassword(password, user.password_hash)) {
+      if (email && !user?.is_locked) await recordLoginFailure(email);
       return NextResponse.redirect(new URL('/login?error=1', request.url), 303);
     }
 
+    await recordLoginSuccess(user.id);
     const ttlHours = Math.max(1, Math.min(72, Number(process.env.SESSION_TTL_HOURS ?? 12)));
     const session = await createSession(user.id, ttlHours);
 
@@ -23,7 +31,7 @@ export async function POST(request: Request) {
     response.cookies.set(SESSION_COOKIE, session.token, {
       httpOnly: true,
       sameSite: 'strict',
-      secure: false,
+      secure: new URL(request.url).protocol === 'https:' || process.env.NODE_ENV === 'production',
       path: '/',
       expires: new Date(session.expiresAt),
     });

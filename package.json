@@ -1,6 +1,6 @@
 {
   "name": "accounting-os-local",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "private": true,
   "workspaces": [
     "apps/*",
@@ -9,8 +9,11 @@
   "scripts": {
     "dev:web": "npm --workspace apps/web run dev",
     "dev:mcp": "npm --workspace apps/mcp run dev",
+    "migrate": "node scripts/migrate.mjs",
+    "bootstrap:admin": "node scripts/bootstrap-admin.mjs",
     "build": "npm --workspace apps/web run build && npm --workspace apps/mcp run build",
-    "typecheck": "npm --workspace packages/db run typecheck && npm --workspace apps/mcp run typecheck && npm --workspace apps/web run typecheck"
+    "typecheck": "npm --workspace packages/db run typecheck && npm --workspace apps/mcp run typecheck && npm --workspace apps/web run typecheck",
+    "test:db": "npm run migrate && node scripts/run-db-tests.mjs"
   },
   "engines": {
     "node": ">=20.9"

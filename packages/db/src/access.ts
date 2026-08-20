@@ -1,5 +1,5 @@
-import { pool } from './base.js';
-import { makePasswordHash } from './auth.js';
+import { pool } from './base.ts';
+import { makePasswordHash } from './auth.ts';
 
 export async function assertCompanyAccess(
   actorId: string,
