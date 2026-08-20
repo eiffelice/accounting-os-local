@@ -33,7 +33,9 @@ export async function getMembership(actorId: string, companyId: string) {
     `SELECT role, can_read, can_create_draft, can_approve, can_post,
             approval_limit, expires_at
      FROM company_memberships
-     WHERE user_id=$1 AND company_id=$2`,
+     WHERE user_id=$1
+       AND company_id=$2
+       AND (expires_at IS NULL OR expires_at > now())`,
     [actorId, companyId]
   );
   return rows[0] ?? null;

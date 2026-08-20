@@ -1,6 +1,12 @@
 import { pool, type Company } from './base.ts';
 import { getMembership } from './access.ts';
 
+export type BankDirectoryRow = {
+  slug: string;
+  name: string;
+  brand_color: string;
+};
+
 export async function listCompanies(): Promise<Company[]> {
   const { rows } = await pool.query<Company>(
     `SELECT id, code, legal_name, display_name, base_currency
@@ -128,6 +134,7 @@ export async function createFinancialAccount(
   input: {
     kind: 'BANK' | 'CASH' | 'E_WALLET' | 'CREDIT_CARD';
     name: string;
+    bankSlug?: string;
     institution?: string;
     maskedNumber?: string;
     currency?: string;
@@ -138,6 +145,30 @@ export async function createFinancialAccount(
     throw new Error('ACCESS_DENIED: cannot create financial account');
   }
 
+  if (!['BANK','CASH','E_WALLET','CREDIT_CARD'].includes(input.kind)) {
+    throw new Error('invalid financial account kind');
+  }
+  const name = input.name.trim();
+  if (!name || name.length > 160) throw new Error('financial account name must be 1-160 characters');
+
+  const bankSlug = input.bankSlug?.trim() || null;
+  if (bankSlug && !/^[a-z0-9]+$/.test(bankSlug)) throw new Error('invalid bank logo identifier');
+  if (input.kind === 'BANK' && !bankSlug) throw new Error('bank is required for bank accounts');
+  if (input.kind === 'CASH' && bankSlug) throw new Error('cash accounts cannot have a bank');
+  const customInstitution = input.institution?.trim() || null;
+  if (customInstitution && customInstitution.length > 120) throw new Error('institution is too long');
+  const maskedNumber = input.maskedNumber?.trim() || null;
+  if (maskedNumber && (
+    maskedNumber.length < 4
+    || maskedNumber.length > 80
+    || !/^[0-9Xx* .-]+$/.test(maskedNumber)
+    || !/[Xx*]/.test(maskedNumber)
+  )) {
+    throw new Error('account number must be masked with X or *');
+  }
+  const currency = (input.currency ?? 'THB').toUpperCase();
+  if (!/^[A-Z]{3}$/.test(currency)) throw new Error('currency must be a 3-letter code');
+
   const systemKey =
     input.kind === 'CASH'
       ? 'CASH'
@@ -145,45 +176,74 @@ export async function createFinancialAccount(
         ? 'CREDIT_CARD_PAYABLE'
         : 'BANK';
 
-  const { rows: gl } = await pool.query(
-    `SELECT id FROM chart_of_accounts
-     WHERE company_id=$1 AND system_key=$2 AND is_active=true`,
-    [companyId, systemKey]
-  );
-  if (!gl[0]) throw new Error(`required GL control account ${systemKey} not found`);
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const { rows: gl } = await client.query(
+      `SELECT id FROM chart_of_accounts
+       WHERE company_id=$1 AND system_key=$2 AND is_active=true`,
+      [companyId, systemKey]
+    );
+    if (!gl[0]) throw new Error(`required GL control account ${systemKey} not found`);
 
-  const { rows: branch } = await pool.query(
-    `SELECT id FROM branches WHERE company_id=$1 AND is_head_office=true LIMIT 1`,
-    [companyId]
-  );
+    const { rows: branch } = await client.query(
+      `SELECT id FROM branches WHERE company_id=$1 AND is_head_office=true LIMIT 1`,
+      [companyId]
+    );
+    let institution = customInstitution;
+    if (bankSlug) {
+      const { rows: banks } = await client.query<{ name: string }>(
+        `SELECT name FROM bank_directory WHERE slug=$1 AND is_active=true`,
+        [bankSlug]
+      );
+      if (!banks[0]) throw new Error('unknown or inactive bank');
+      institution = banks[0].name;
+    }
 
-  const { rows } = await pool.query(
-    `INSERT INTO financial_accounts(
-       company_id, branch_id, gl_account_id, kind, name, institution, masked_number, currency
-     ) VALUES($1,$2,$3,$4,$5,$6,$7,$8)
-     RETURNING id`,
-    [
-      companyId, branch[0]?.id ?? null, gl[0].id, input.kind, input.name.trim(),
-      input.institution?.trim() || null, input.maskedNumber?.trim() || null,
-      (input.currency ?? 'THB').toUpperCase()
-    ]
-  );
+    const { rows } = await client.query(
+      `INSERT INTO financial_accounts(
+         company_id, branch_id, gl_account_id, kind, name, bank_slug, institution, masked_number, currency
+       ) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)
+       RETURNING id`,
+      [
+        companyId, branch[0]?.id ?? null, gl[0].id, input.kind, name, bankSlug,
+        institution, maskedNumber, currency
+      ]
+    );
 
-  await pool.query(
-    `INSERT INTO audit_events(company_id, actor_user_id, event_type, resource_type, resource_id, payload)
-     VALUES($1,$2,'FINANCIAL_ACCOUNT_CREATED','financial_account',$3,$4::jsonb)`,
-    [
-      companyId, actorId, rows[0].id,
-      JSON.stringify({ kind: input.kind, name: input.name.trim(), institution: input.institution?.trim() || null })
-    ]
-  );
+    await client.query(
+      `INSERT INTO audit_events(company_id, actor_user_id, event_type, resource_type, resource_id, payload)
+       VALUES($1,$2,'FINANCIAL_ACCOUNT_CREATED','financial_account',$3,$4::jsonb)`,
+      [
+        companyId, actorId, rows[0].id,
+        JSON.stringify({ kind: input.kind, name, bankSlug, institution })
+      ]
+    );
+    await client.query('COMMIT');
+    return rows[0].id as string;
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
 
-  return rows[0].id as string;
+export async function listBanks() {
+  const { rows } = await pool.query<BankDirectoryRow>(
+    `SELECT slug, name, brand_color
+     FROM bank_directory
+     WHERE is_active=true
+     ORDER BY name`
+  );
+  return rows;
 }
 
 export async function financialAccountBalances(companyId: string) {
   const { rows } = await pool.query(
     `SELECT fa.id, fa.kind, fa.name, fa.institution, fa.masked_number, fa.currency,
+            fa.bank_slug, b.name AS bank_name,
+            b.brand_color AS bank_brand_color,
             COALESCE(sum(
               CASE
                 WHEN je.status NOT IN ('POSTED','REVERSED') THEN 0
@@ -193,10 +253,12 @@ export async function financialAccountBalances(companyId: string) {
             ),0)::text AS balance
      FROM financial_accounts fa
      JOIN chart_of_accounts a ON a.id=fa.gl_account_id
+     LEFT JOIN bank_directory b ON b.slug=fa.bank_slug
      LEFT JOIN journal_lines jl ON jl.financial_account_id=fa.id
      LEFT JOIN journal_entries je ON je.id=jl.journal_entry_id
      WHERE fa.company_id=$1 AND fa.is_active=true
-     GROUP BY fa.id, fa.kind, fa.name, fa.institution, fa.masked_number, fa.currency, a.account_type
+     GROUP BY fa.id, fa.kind, fa.name, fa.institution, fa.masked_number, fa.currency,
+              fa.bank_slug, b.name, b.brand_color, a.account_type
      ORDER BY fa.kind, fa.name`,
     [companyId]
   );
@@ -206,9 +268,12 @@ export async function financialAccountBalances(companyId: string) {
 export async function listFinancialAccounts(companyId: string) {
   const { rows } = await pool.query(
     `SELECT fa.id, fa.kind, fa.name, fa.institution, fa.masked_number, fa.currency,
+            fa.bank_slug, b.name AS bank_name,
+            b.brand_color AS bank_brand_color,
             a.code AS gl_code, a.name_th AS gl_name
      FROM financial_accounts fa
      JOIN chart_of_accounts a ON a.id = fa.gl_account_id
+     LEFT JOIN bank_directory b ON b.slug=fa.bank_slug
      WHERE fa.company_id = $1 AND fa.is_active = true
      ORDER BY fa.kind, fa.name`,
     [companyId]

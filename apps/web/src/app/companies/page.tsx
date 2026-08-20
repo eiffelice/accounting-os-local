@@ -2,9 +2,12 @@ import { requireUser } from '@/lib/auth';
 import { AppShell } from '@/components/shell';
 import {
   financialAccountBalances,
+  listBanks,
   listCompaniesForUser,
 } from '@accounting-os/db';
 import { formatThb } from '@/lib/format';
+import { BankLogo } from '@/components/bank-logo';
+import { FinancialAccountForm } from '@/components/financial-account-form';
 
 export default async function CompaniesPage({
   searchParams,
@@ -15,7 +18,10 @@ export default async function CompaniesPage({
   const params = await searchParams;
   const companies = await listCompaniesForUser(user.id);
   const selected = companies.find((c) => c.id === params.company) ?? companies[0];
-  const balances = selected ? await financialAccountBalances(selected.id) : [];
+  const [balances, banks] = await Promise.all([
+    selected ? financialAccountBalances(selected.id) : [],
+    listBanks(),
+  ]);
 
   return (
     <AppShell user={user} selectedCompanyId={selected?.id}>
@@ -60,21 +66,7 @@ export default async function CompaniesPage({
         <section className="grid recent">
           <article className="panel">
             <h3>เพิ่มบัญชี — {selected.display_name}</h3>
-            <form className="formStack" action="/api/companies/account" method="post">
-              <input type="hidden" name="companyId" value={selected.id}/>
-              <label>ประเภท
-                <select name="kind">
-                  <option value="BANK">ธนาคาร</option>
-                  <option value="CASH">เงินสด</option>
-                  <option value="E_WALLET">E-Wallet</option>
-                  <option value="CREDIT_CARD">บัตรเครดิต</option>
-                </select>
-              </label>
-              <label>ชื่อบัญชี<input name="name" required maxLength={160}/></label>
-              <label>ธนาคาร/สถาบัน<input name="institution" maxLength={120}/></label>
-              <label>เลขที่ Mask แล้ว<input name="maskedNumber" placeholder="XXX-X-X1234-X" maxLength={80}/></label>
-              <button className="primaryBtn" type="submit">เพิ่มบัญชี</button>
-            </form>
+            <FinancialAccountForm companyId={selected.id} banks={banks}/>
           </article>
 
           <article className="panel">
@@ -82,8 +74,8 @@ export default async function CompaniesPage({
             <div className="accountList">
               {balances.map((a: any) => (
                 <div className="accountRow" key={a.id}>
-                  <div className="accountIcon">{a.kind === 'CASH' ? '฿' : '🏦'}</div>
-                  <div className="grow"><b>{a.name}</b><span>{a.institution ?? a.kind} · {a.masked_number ?? '-'}</span></div>
+                  <BankLogo slug={a.bank_slug} color={a.bank_brand_color} name={a.bank_name} kind={a.kind}/>
+                  <div className="grow"><b>{a.name}</b><span>{a.bank_name ?? a.institution ?? a.kind} · {a.masked_number ?? '-'}</span></div>
                   <div className="right"><b>{formatThb(a.balance)}</b><span>{a.currency}</span></div>
                 </div>
               ))}

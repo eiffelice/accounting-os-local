@@ -55,6 +55,16 @@ nav { display: grid; gap: 5px; }
 .accountList { display: grid; gap: 9px; }
 .accountRow { display: flex; align-items: center; gap: 12px; padding: 12px; background: #f8fafd; border: 1px solid #edf1f6; border-radius: 12px; }
 .accountIcon { width: 36px; height: 36px; border-radius: 10px; background: white; display: grid; place-items: center; border: 1px solid #e4e9f0; }
+.bankLogo { flex: 0 0 auto; overflow: hidden; }
+.bankLogo img { display: block; width: 72%; height: 72%; object-fit: contain; }
+.bankLogoNeedsContrast { box-shadow: inset 0 0 0 999px #00000078; }
+.bankLogoSmall { width: 28px; height: 28px; border-radius: 7px; }
+.bankLogoFallback { color: #506078; font-size: 11px; font-weight: 800; }
+.bankSelectRow { display: grid; grid-template-columns: 36px 1fr; gap: 9px; align-items: center; }
+.journalDescription { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.journalDescription > span { display: grid; gap: 2px; min-width: 0; }
+.journalDescription b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
+.journalDescription small { color: #8390a4; font-size: 9px; }
 .grow { flex: 1; display: grid; gap: 3px; }
 .grow b, .right b { font-size: 12px; }
 .grow span, .right span { color: #8390a4; font-size: 10px; }
@@ -101,6 +111,15 @@ button { cursor: pointer; }
 .formStack { display: grid; gap: 12px; }
 .formStack label { display: grid; gap: 6px; font-size: 11px; font-weight: 700; color: #55637a; }
 .formStack input, .formStack select, .permissionRow input, .permissionRow select { width: 100%; border: 1px solid #dfe6f0; border-radius: 9px; padding: 10px 11px; background: white; color: #172033; }
+.accountPicker { border: 0; padding: 0; margin: 0; min-width: 0; }
+.accountPicker legend { margin-bottom: 6px; font-size: 11px; font-weight: 700; color: #55637a; }
+.accountChoices { display: grid; gap: 7px; max-height: 190px; overflow-y: auto; }
+.accountChoice { display: grid; grid-template-columns: 18px 28px 1fr; gap: 9px; align-items: center; border: 1px solid #e1e7f0; border-radius: 8px; padding: 8px; cursor: pointer; background: #fbfcfe; }
+.accountChoice:has(input:checked) { border-color: #315ddd; background: #f2f6ff; }
+.accountChoice input { width: 16px; height: 16px; margin: 0; }
+.accountChoice > span:last-child { display: grid; gap: 2px; min-width: 0; }
+.accountChoice b { font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.accountChoice small { color: #8390a4; font-size: 9px; }
 .successBox, .errorBox { padding: 11px 14px; border-radius: 11px; margin: 10px 0 16px; font-size: 12px; }
 .successBox { background: #e8f8ef; color: #216f48; border: 1px solid #ccebd9; }
 .errorBox { background: #fff0f0; color: #a23d3d; border: 1px solid #ffd3d3; }
